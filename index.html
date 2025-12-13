@@ -10,7 +10,7 @@
     <meta name="theme-color" content="#ffffff">
     <meta name="mobile-web-app-capable" content="yes">
     
-    <title>HACCP Pro 10.0</title>
+    <title>HACCP Pro 11.0</title>
     
     <!-- STILI -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -178,19 +178,19 @@
             return (
                 <div id="scanner-overlay">
                     <div className="p-4 flex justify-between text-white bg-black/50 z-10 absolute w-full top-0">
-                        <span className="font-bold flex gap-2"><ScanLine className="text-orange-500"/> SCANNER</span>
-                        <button onClick={stop} className="bg-white/20 p-2 rounded-full"><X/></button>
+                        <span className="font-bold flex gap-2"><ScanLine/> SCANNER</span>
+                        <button onClick={stop}><X/></button>
                     </div>
                     <div id="scanner-video-container">
                         <div id="reader"></div>
                         {!isProcessing && <div className="scan-region"><div className="absolute -top-10 w-full text-center text-white/90 text-sm font-bold bg-black/50 rounded-full py-1">INQUADRA IL CODICE</div></div>}
                         {isProcessing && <div className="absolute inset-0 z-20 bg-black/80 flex flex-col items-center justify-center text-white"><Loader2 size={56} className="animate-spin text-orange-500 mb-4"/><p className="font-bold text-xl">{status}</p></div>}
                     </div>
-                    <div id="scanner-controls" className="bg-slate-900 border-t border-slate-800">
-                        <div className="flex justify-center items-center gap-10 py-6">
-                            <div className="text-white/60 text-[10px] uppercase font-bold flex flex-col items-center gap-1"><div className="p-3 rounded-full border border-white/20"><Zap size={20}/></div>Auto</div>
-                            <button onClick={takePhoto} className="flex flex-col items-center text-white gap-1 active:scale-95 transition-transform"><div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-black border-4 border-slate-700 ring-2 ring-white/50 shadow-[0_0_20px_rgba(255,255,255,0.3)]"><Camera size={36}/></div><span className="text-xs font-bold mt-2">FOTO TESTO</span></button>
-                        </div>
+                    <div id="scanner-controls" className="bg-slate-900 p-8 flex justify-center z-10">
+                        <button onClick={takePhoto} className="flex flex-col items-center text-white gap-2">
+                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-black border-4 border-slate-700 ring-2 ring-white/50 shadow-[0_0_20px_rgba(255,255,255,0.3)]"><Camera size={36}/></div>
+                            <span className="text-xs font-bold">FOTO TESTO</span>
+                        </button>
                     </div>
                 </div>
             );
@@ -284,7 +284,7 @@
                             <div className="p-4 border-b flex gap-2"><input className="flex-1 p-3 border rounded-xl" placeholder="Nuovo prodotto..." value={newProd} onChange={e => setNewProd(e.target.value)} onKeyDown={e => e.key === 'Enter' && addProduct()}/><button onClick={addProduct} className="bg-blue-600 text-white px-6 rounded-xl font-bold"><Plus/></button></div>
                             <div className="p-4 flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-3 content-start">
                                 {inventory[selCat]?.products.map((p, idx) => (
-                                    <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border"><span className="font-medium">{p}</span><button onClick={() => deleteProduct(p)} className="text-slate-300 hover:text-red-500"><X/></button></div>
+                                    <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border hover:border-blue-300"><span className="font-medium">{p}</span><button onClick={() => deleteProduct(p)} className="text-slate-300 hover:text-red-500"><X/></button></div>
                                 ))}
                             </div>
                         </div>
@@ -412,21 +412,21 @@
                 } catch(e) { alert("Stampa BT fallita."); window.print(); }
             };
 
-            const startScan = (t) => { setScanTarget(t); setScanning(true); };
-            const handleScan = (t) => { if(scanTarget==='main') setLot(t); else setIngLot(t); setScanning(false); };
+            const startScan = (t) => { setScanTarget(t); setIsScanning(true); };
+            const handleScan = (t) => { if(scanTarget==='main') setLot(t); else setIngLot(t); setIsScanning(false); };
             const addIng = () => { if(!ingName||!ingQty) return alert("Dati mancanti"); setIngs([...ings, {name:ingName, lot:ingLot||'N/A', qty:ingQty}]); setIngName(''); setIngLot(''); setIngQty(''); };
 
             return (
                 <div className="min-h-screen pb-20 bg-slate-50">
-                    {scanning && <Scanner onResult={handleScan} onClose={()=>setScanning(false)}/>}
+                    {scanning && <Scanner onResult={handleScan} onClose={()=>setIsScanning(false)}/>}
                     {!window.isSecureContext && <div className="bg-amber-100 text-amber-800 p-2 text-center text-xs font-bold">HTTPS NECESSARIO</div>}
 
-                    <div className="bg-white p-4 sticky top-0 z-10 border-b flex justify-between shadow-sm">
+                    <div className="bg-white p-4 sticky top-0 z-10 border-b flex justify-between items-center shadow-sm">
                         <div className="font-bold text-lg flex items-center gap-2"><Layers className="text-orange-500"/> HACCP Pro</div>
                         <div className="flex gap-2">
-                            <button onClick={()=>setView('home')} className={`p-2 rounded-lg ${view==='home'?'bg-slate-100':''}`}><Plus/></button>
-                            <button onClick={()=>setView('history')} className={`p-2 rounded-lg ${view==='history'?'bg-slate-100':''}`}><History/></button>
-                            <button onClick={()=>setView('menu')} className={`p-2 rounded-lg ${view==='menu'?'bg-slate-100':''}`}><Settings/></button>
+                            <button onClick={()=>setView('home')} className={`p-2 rounded-lg ${view==='home'?'bg-slate-100':''}`}><Plus size={24}/></button>
+                            <button onClick={()=>setView('history')} className={`p-2 rounded-lg ${view==='history'?'bg-slate-100':''}`}><History size={24}/></button>
+                            <button onClick={()=>setView('menu')} className={`p-2 rounded-lg ${view==='menu'?'bg-slate-100':''}`}><Settings size={24}/></button>
                         </div>
                     </div>
 
