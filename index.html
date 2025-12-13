@@ -9,8 +9,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#ffffff">
     <meta name="mobile-web-app-capable" content="yes">
-    
-    <title>HACCP Pro 8.0</title>
+    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiSEFDQ1AgUHJvIiwic2hvcnRfbmFtZSI6IkhBQ0NQIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiI2ZmZmZmZiIsInRoZW1lX2NvbG9yIjoiIzFhMjAyYyIsImljb25zIjpbeyJzcmMiOiJodHRwczovL2luc3dhcC5pdC9hcHAvYXBwLWljb24ucG5nIiwic2l6ZXMiOiIxOTJ4MTkyIiwidHlwZSI6ImltYWdlL3BuZyJ9XX0=">
+
+    <title>HACCP Pro 9.5</title>
     
     <!-- STILI -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -19,22 +20,12 @@
         body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; padding-bottom: env(safe-area-inset-bottom); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         
-        /* SCANNER FULLSCREEN */
+        /* SCANNER STYLE */
         #scanner-overlay { position: fixed; inset: 0; z-index: 9999; background: black; display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
-        #scanner-video-container { flex: 1; position: relative; overflow: hidden; background: black; display: flex; align-items: center; justify-content: center; }
-        #reader { width: 100%; height: 100%; }
+        #reader { flex: 1; position: relative; overflow: hidden; background: black; }
         #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
-        #scanner-controls { position: relative; z-index: 100; background: rgba(15, 23, 42, 0.95); padding-bottom: env(safe-area-inset-bottom, 20px); flex-shrink: 0; }
+        .scan-region { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; aspect-ratio: 3/1; border: 2px solid orange; border-radius: 12px; z-index: 10; pointer-events: none; box-shadow: 0 0 0 9999px rgba(0,0,0,0.7); }
         
-        .scan-region { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            width: 80%; aspect-ratio: 3/1; 
-            border: 2px solid rgba(255, 165, 0, 0.8); 
-            border-radius: 12px; 
-            box-shadow: 0 0 0 9999px rgba(0,0,0,0.7); 
-            pointer-events: none; z-index: 10; 
-        }
-
         @media print {
             body * { visibility: hidden; }
             #print-area, #print-area * { visibility: visible; }
@@ -42,7 +33,7 @@
         }
     </style>
 
-    <!-- LIBS -->
+    <!-- IMPORT MAP -->
     <script type="importmap">
     {
       "imports": {
@@ -56,20 +47,41 @@
     </script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
-<body class="bg-slate-50 text-slate-900">
-    <div id="root"></div>
+<body class="bg-slate-50 text-slate-900 select-none">
+    <div id="root">
+        <div class="flex h-screen items-center justify-center text-slate-400 gap-2">
+            <div class="animate-spin h-6 w-6 border-2 border-orange-500 border-t-transparent rounded-full"></div>
+            Caricamento App...
+        </div>
+    </div>
 
+    <!-- APP CODE -->
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useRef } from 'react';
+        import React, { useState, useEffect, useRef, Component } from 'react';
         import ReactDOM from 'react-dom/client';
         import { 
             Layers, Plus, History, Settings, Printer, Trash2, X, Camera, 
-            ScanLine, Zap, ChevronRight, Edit3, Save, ChefHat, Package, Check, ArrowRight,
-            FileText, Bluetooth, List, Lock, Smartphone, Share, MoreVertical, Cloud, Link as LinkIcon, Loader2,
-            Download, Upload, FileSpreadsheet
+            ScanLine, Zap, ChefHat, Package, Check, Cloud, Link as LinkIcon, 
+            Download, Upload, FileSpreadsheet, Lock, AlertTriangle
         } from 'lucide-react';
         import { Html5Qrcode } from 'html5-qrcode';
         import Tesseract from 'tesseract.js';
+
+        // --- ERROR BOUNDARY ---
+        class ErrorBoundary extends Component {
+            constructor(props) { super(props); this.state = { hasError: false }; }
+            static getDerivedStateFromError(error) { return { hasError: true }; }
+            render() {
+                if (this.state.hasError) return (
+                    <div className="h-screen flex flex-col items-center justify-center p-6 text-center">
+                        <AlertTriangle className="text-red-500 mb-4" size={48}/>
+                        <h1 className="text-xl font-bold">Si è verificato un errore</h1>
+                        <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="mt-6 bg-red-600 text-white px-6 py-3 rounded-xl font-bold">RESETTA DATI</button>
+                    </div>
+                );
+                return this.props.children;
+            }
+        }
 
         const DEFAULT_DATA = {
             impasti: { id: 'impasti', name: 'Impasti', products: ['Impasto Pizza', 'Pane', 'Integrale'] },
@@ -77,10 +89,9 @@
             frigo: { id: 'frigo', name: 'Frigo', products: ['Mozzarella', 'Prosciutto', 'Salame'] }
         };
 
-        // --- 1. SCANNER OCR VELOCE ---
+        // --- SCANNER ---
         const Scanner = ({ onResult, onClose }) => {
             const [status, setStatus] = useState('');
-            const [isProcessing, setIsProcessing] = useState(false);
             const scannerRef = useRef(null);
 
             useEffect(() => {
@@ -103,24 +114,10 @@
 
             const stop = () => { if(scannerRef.current) scannerRef.current.stop().catch(()=>{}); onClose(); };
 
-            const extractLot = (text) => {
-                const clean = text.replace(/[^A-Z0-9\-\/\.\s:]/g, '');
-                const labelMatch = clean.match(/(?:L\.|L:|LOTTO|BATCH|LOT)[.\s:]*([A-Z0-9\-\/]+)/i);
-                if (labelMatch) return labelMatch[1];
-                const dateLotMatch = clean.match(/\b(\d{3}-\d{2})\b/);
-                if (dateLotMatch) return dateLotMatch[1];
-                const tokens = clean.split(/\s+/);
-                for(const t of tokens) { if(t.length >= 3 && t.length <= 12 && /\d/.test(t) && /[A-Z]/.test(t)) return t; }
-                for(const t of tokens) { if(t.length >= 4 && t.length <= 10 && /^\d+$/.test(t)) return t; }
-                return null;
-            };
-
             const takePhoto = async () => {
                 const vid = document.querySelector("#reader video");
                 if(!vid) return;
-                setIsProcessing(true);
                 setStatus('Analisi...');
-                
                 try {
                     const canvas = document.createElement('canvas');
                     const scale = 800 / vid.videoWidth; 
@@ -129,11 +126,10 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
                     
-                    const cropW = canvas.width * 0.8;
-                    const cropH = canvas.height * 0.25; 
+                    const cw = canvas.width * 0.8; const ch = canvas.height * 0.25;
                     const cropCvs = document.createElement('canvas');
-                    cropCvs.width = cropW; cropCvs.height = cropH;
-                    cropCvs.getContext('2d').drawImage(canvas, (canvas.width-cropW)/2, (canvas.height-cropH)/2, cropW, cropH, 0, 0, cropW, cropH);
+                    cropCvs.width = cw; cropCvs.height = ch;
+                    cropCvs.getContext('2d').drawImage(canvas, (canvas.width-cw)/2, (canvas.height-ch)/2, cw, ch, 0, 0, cw, ch);
 
                     const res = await Tesseract.recognize(
                         cropCvs.toDataURL('image/jpeg', 0.6), 
@@ -141,38 +137,32 @@
                         { tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/. :' }
                     );
 
-                    const found = extractLot(res.data.text);
-                    if(found) { stop(); onResult(found); } 
-                    else { 
-                        const raw = res.data.text.replace(/[^A-Z0-9\-\/]/g, '').trim();
-                        if(raw.length > 2) { stop(); onResult(raw); }
-                        else { setStatus('Non trovato. Riprova.'); setTimeout(()=> { setStatus(''); setIsProcessing(false); }, 1500); }
-                    }
-                } catch(e) { setStatus('Errore OCR'); setTimeout(()=>setIsProcessing(false), 2000); }
+                    const clean = res.data.text.replace(/[^A-Z0-9\-\/]/g, '').trim();
+                    if(clean.length > 2) { stop(); onResult(clean); }
+                    else { setStatus('Non trovato. Riprova.'); setTimeout(()=>setStatus(''), 1500); }
+                } catch(e) { setStatus('Errore OCR'); }
             };
 
             return (
                 <div id="scanner-overlay">
-                    <div className="flex justify-between items-center p-4 text-white bg-gradient-to-b from-black/80 to-transparent absolute top-0 w-full z-10">
-                        <span className="font-bold flex gap-2"><ScanLine className="text-orange-500"/> SCANNER</span>
-                        <button onClick={stop} className="bg-white/20 p-2 rounded-full z-50"><X size={24}/></button>
+                    <div className="p-4 flex justify-between text-white bg-black/50 z-10 absolute w-full top-0">
+                        <span className="font-bold flex gap-2"><ScanLine/> SCANNER</span>
+                        <button onClick={stop}><X/></button>
                     </div>
-                    <div id="scanner-video-container">
-                        <div id="reader"></div>
-                        {!isProcessing && <div className="scan-region"><div className="absolute -top-10 w-full text-center text-white/90 text-sm font-bold bg-black/50 rounded-full py-1">INQUADRA IL CODICE</div></div>}
-                        {isProcessing && <div className="absolute inset-0 z-20 bg-black/80 flex flex-col items-center justify-center text-white"><Loader2 size={56} className="animate-spin text-orange-500 mb-4"/><p className="font-bold text-xl">{status}</p></div>}
-                    </div>
-                    <div id="scanner-controls" className="bg-slate-900 border-t border-slate-800">
-                        <div className="flex justify-center items-center gap-10 py-6">
-                            <div className="text-white/60 text-[10px] uppercase font-bold flex flex-col items-center gap-1"><div className="p-3 rounded-full border border-white/20"><Zap size={20}/></div>Auto</div>
-                            <button onClick={takePhoto} className="flex flex-col items-center text-white gap-1 active:scale-95 transition-transform"><div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-black border-4 border-slate-700 ring-2 ring-white/50 shadow-[0_0_20px_rgba(255,255,255,0.3)]"><Camera size={36}/></div><span className="text-xs font-bold mt-2">FOTO TESTO</span></button>
-                        </div>
+                    <div id="reader"></div>
+                    <div className="scan-region"></div>
+                    {status && <div className="absolute inset-0 flex items-center justify-center text-white font-bold bg-black/50 z-20">{status}</div>}
+                    <div className="bg-slate-900 p-8 flex justify-center z-10">
+                        <button onClick={takePhoto} className="flex flex-col items-center text-white">
+                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-black border-4 border-slate-700"><Camera size={32}/></div>
+                            <span className="text-xs font-bold mt-2">FOTO TESTO</span>
+                        </button>
                     </div>
                 </div>
             );
         };
 
-        // --- 2. GESTIONE MENU CON CSV ---
+        // --- GESTIONE MENU ---
         const MenuManager = ({ inventory, onUpdate }) => {
             const [newCat, setNewCat] = useState('');
             const [newProd, setNewProd] = useState('');
@@ -209,14 +199,13 @@
                 reader.onload = (evt) => {
                     const lines = evt.target.result.split('\n');
                     const newInv = { ...inventory };
-                    lines.forEach((line, i) => {
+                    lines.forEach((l, i) => {
                         if(i===0) return;
-                        const [cName, pName] = line.split(',');
-                        if(cName && pName) {
-                            const cn = cName.trim(); const pn = pName.trim();
-                            const id = cn.toLowerCase().replace(/\s+/g, '');
-                            if(!newInv[id]) newInv[id] = { id, name: cn, products: [] };
-                            if(!newInv[id].products.includes(pn)) newInv[id].products.push(pn);
+                        const [c, p] = l.split(',');
+                        if(c && p) {
+                            const id = c.trim().toLowerCase().replace(/\s+/g, '');
+                            if(!newInv[id]) newInv[id] = { id, name: c.trim(), products: [] };
+                            if(!newInv[id].products.includes(p.trim())) newInv[id].products.push(p.trim());
                         }
                     });
                     onUpdate(newInv);
@@ -269,7 +258,7 @@
             );
         };
 
-        // --- 3. APP PRINCIPALE ---
+        // --- APP ---
         function App() {
             const [view, setView] = useState('home'); 
             const [mode, setMode] = useState('single');
@@ -289,10 +278,15 @@
             const [newIngQty, setNewIngQty] = useState('');
             const printerCache = useRef(null);
 
+            // Load Data Safely
             useEffect(() => {
-                const i = localStorage.getItem('haccp_inv_v3'); if(i) setInventory(JSON.parse(i));
-                const l = localStorage.getItem('haccp_logs_v3'); if(l) setLogs(JSON.parse(l));
-                generatePrepLot();
+                try {
+                    const i = localStorage.getItem('haccp_inv_v5'); 
+                    if(i) setInventory(JSON.parse(i));
+                    const l = localStorage.getItem('haccp_logs_v5'); 
+                    if(l) setLogs(JSON.parse(l));
+                    generatePrepLot();
+                } catch(e) { console.error(e); }
             }, []);
 
             useEffect(() => {
@@ -316,10 +310,10 @@
                     generatePrepLot();
                 } else { if(!lot) return alert("Inserisci Lotto"); }
                 
-                const newItem = { id: Date.now(), date: new Date().toISOString().split('T')[0], cat: inventory[catId]?.name, prod: prod||'Prodotto', lot: finalLot, qty, type: mode, ingredients: finalIngs };
+                const newItem = { id: Date.now(), date: new Date().toISOString().split('T')[0], cat: inventory[catId]?.name, prod: prod||'?', lot: finalLot, qty, type: mode, ingredients: finalIngs };
                 const newLogs = [newItem, ...logs];
                 setLogs(newLogs);
-                localStorage.setItem('haccp_logs_v3', JSON.stringify(newLogs));
+                localStorage.setItem('haccp_logs_v5', JSON.stringify(newLogs));
                 
                 const cloudUrl = localStorage.getItem('haccp_cloud_url');
                 if (cloudUrl) {
@@ -345,10 +339,11 @@
                 try {
                     let dev = printerCache.current;
                     let server;
-                    if (device && device.gatt.connected) { server = device.gatt; } else {
-                        device = await navigator.bluetooth.requestDevice({ filters:[{name:'4B-2054L'}], optionalServices:['000018f0-0000-1000-8000-00805f9b34fb'] });
-                        server = await device.gatt.connect();
-                        printerCache.current = device;
+                    if (dev && dev.gatt.connected) { server = dev.gatt; } else {
+                        dev = await navigator.bluetooth.requestDevice({ filters:[{name:'4B-2054L'}], optionalServices:['000018f0-0000-1000-8000-00805f9b34fb'] });
+                        server = await dev.gatt.connect();
+                        printerCache.current = dev;
+                        dev.addEventListener('gattserverdisconnected', () => printerCache.current = null);
                     }
                     const svc = await server.getPrimaryServices();
                     const char = (await svc[0].getCharacteristics()).find(c=>c.properties.write || c.properties.writeWithoutResponse);
@@ -377,16 +372,16 @@
 
                     cmds += `BAR 10,270,460,2\nTEXT 30,285,"2",0,1,1,"${item.date}"\nTEXT 300,285,"2",0,1,1,"Scad: +3gg"\nPRINT 1\nEND`;
                     
-                    const enc = new TextEncoder().encode(cmds);
-                    for(let i=0; i<enc.length; i+=100) await char.writeValue(enc.slice(i, i+100));
+                    const data = enc.encode(cmds);
+                    for(let i=0; i<data.length; i+=100) await char.writeValue(data.slice(i, i+100));
 
-                } catch(e) { window.print(); }
+                } catch(e) { alert("Stampa BT fallita."); window.print(); }
             };
 
             const startScan = (t) => { setScanTarget(t); setIsScanning(true); };
             const handleScan = (t) => { if(scanTarget==='main') setLot(t); else setNewIngLot(t); setIsScanning(false); };
             const addIng = () => { if(!newIngName || !newIngQty) return alert("Dati mancanti"); setIngredients([...ingredients, {name:newIngName, lot:newIngLot||'N/A', qty:newIngQty}]); setNewIngName(''); setNewIngLot(''); setNewIngQty(''); };
-            const saveInv = (n) => { setInventory(n); localStorage.setItem('haccp_inv_v3', JSON.stringify(n)); };
+            const saveInv = (n) => { setInventory(n); localStorage.setItem('haccp_inv_v5', JSON.stringify(n)); };
 
             return (
                 <div className="min-h-screen pb-20 bg-slate-50">
@@ -443,7 +438,7 @@
                                 <div key={l.id} className="bg-white p-5 rounded-2xl border shadow-sm flex flex-col gap-3">
                                     <div className="flex justify-between items-start">
                                         <div><span className="font-bold text-lg">{l.prod}</span><div className="text-sm text-slate-500">Lotto: {l.lot} • {l.qty}</div><div className="text-xs text-slate-400">{l.date}</div></div>
-                                        <div className="flex gap-2"><button onClick={()=>print(l)} className="p-3 bg-slate-50 rounded-xl"><Printer/></button><button onClick={()=>{if(confirm('?')) setLogs(logs.filter(x=>x.id!==l.id))}} className="p-3 text-red-500"><Trash2/></button></div>
+                                        <div className="flex gap-2"><button onClick={()=>printBT(l)} className="p-3 bg-slate-50 rounded-xl"><Printer/></button><button onClick={()=>{if(confirm('?')) setLogs(logs.filter(x=>x.id!==l.id))}} className="p-3 text-red-500"><Trash2/></button></div>
                                     </div>
                                     {l.type === 'recipe' && l.ingredients && <div className="mt-2 p-3 bg-slate-50 rounded-xl border text-xs"><div className="font-bold mb-2">Ingredienti</div>{l.ingredients.map((ing, i) => <div key={i} className="flex justify-between border-b py-1"><span>{ing.name}</span><span className="font-mono">{ing.lot}</span></div>)}</div>}
                                 </div>
@@ -458,7 +453,7 @@
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        root.render(<ErrorBoundary><App /></ErrorBoundary>);
     </script>
 </body>
 </html>
