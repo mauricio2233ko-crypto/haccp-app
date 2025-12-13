@@ -11,11 +11,11 @@
     <meta name="theme-color" content="#ffffff">
     <meta name="mobile-web-app-capable" content="yes">
     
-    <!-- ICONE APP (Placeholder URL stabili) -->
+    <!-- ICONE APP -->
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/1046/1046857.png">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1046/1046857.png">
 
-    <!-- MANIFEST PWA INTEGRATO -->
+    <!-- MANIFEST PWA INTEGRATO (Base64) -->
     <link rel="manifest" href='data:application/manifest+json;base64,eyJuYW1lIjoiSEFDQ1AgUHJvIiwiYHNob3J0X25hbWUiOiJIQUNDUCIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjZmZmZmZmIiwidGhlbWVfY29sb3IiOiIjZjk3MzE2IiwiaWNvbnMiOlt7InNyYyI6Imh0dHBzOi8vY2RuLWljb25zLXBuZy5mbGF0aWNvbi5jb20vNTEyLzEwNDYvMTA0Njg1Ny5wbmciLCJzaXplcyI6IjUxMng1MTIiLCJ0eXBlIjoiaW1hZ2UvcG5nIn1dfQ=='>
 
     <title>HACCP Pro 13.0</title>
@@ -314,25 +314,13 @@
                 reader.readAsText(file);
             };
 
-            const installApp = () => {
-                // Funziona solo se l'evento è stato catturato (su Android)
-                if (window.deferredPrompt) {
-                    window.deferredPrompt.prompt();
-                    window.deferredPrompt.userChoice.then((choiceResult) => {
-                        window.deferredPrompt = null;
-                    });
-                } else {
-                    alert("Per installare: \nSu iPad/iPhone: Condividi -> Aggiungi a Home\nSu Android: Menu -> Installa App");
-                }
-            };
-
             return (
                 <div className="p-4 md:p-8 space-y-8 pb-20 animate-in fade-in max-w-5xl mx-auto">
                     
                     {/* INSTALLAZIONE */}
                     <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 shadow-sm flex justify-between items-center">
                         <div className="text-indigo-900 font-bold flex items-center gap-2"><Smartphone size={20}/> App Mobile</div>
-                        <button onClick={installApp} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow flex items-center gap-2"><MonitorDown size={16}/> INSTALLA</button>
+                        <button onClick={() => alert("Per installare:\niPad: Condividi > Aggiungi a Home\nAndroid: Menu > Installa App")} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow flex items-center gap-2"><MonitorDown size={16}/> INFO</button>
                     </div>
 
                     <div className="grid md:grid-cols-2 gap-4">
@@ -396,16 +384,13 @@
             const [scanTarget, setScanTarget] = useState(null);
             const printer = useRef(null);
 
+            // Load Data Safely
             useEffect(() => {
-                // PWA Install Prompt Listener
-                window.addEventListener('beforeinstallprompt', (e) => {
-                    e.preventDefault();
-                    window.deferredPrompt = e;
-                });
-                
                 try {
-                    const i = localStorage.getItem('haccp_inv_v5'); if(i) setInv(JSON.parse(i));
-                    const l = localStorage.getItem('haccp_logs_v5'); if(l) setLogs(JSON.parse(l));
+                    const i = localStorage.getItem('haccp_inv_v5'); 
+                    if(i) setInv(JSON.parse(i));
+                    const l = localStorage.getItem('haccp_logs_v5'); 
+                    if(l) setLogs(JSON.parse(l));
                     generatePrepLot();
                 } catch(e) { console.error(e); }
             }, []);
