@@ -406,8 +406,8 @@
 
                     cmds += `BAR 10,270,460,2\nTEXT 30,285,"2",0,1,1,"${item.date}"\nTEXT 300,285,"2",0,1,1,"Scad: +3gg"\nPRINT 1\nEND`;
                     
-                    const enc = new TextEncoder().encode(cmds);
-                    for(let i=0; i<enc.length; i+=100) await char.writeValue(enc.slice(i, i+100));
+                    const data = enc.encode(cmds);
+                    for(let i=0; i<data.length; i+=100) await char.writeValue(data.slice(i, i+100));
 
                 } catch(e) { alert("Stampa BT fallita."); window.print(); }
             };
@@ -452,8 +452,8 @@
                                         ) : (
                                             <div className="space-y-4">
                                                 <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex justify-between items-center"><div><div className="text-[10px] font-bold text-indigo-400">LOTTO INTERNO</div><div className="text-2xl font-mono font-bold text-indigo-700">{prepLot}</div></div><ChefHat className="text-indigo-300" size={32}/></div>
-                                                <div className="space-y-2">{ings.map((i,k) => <div key={k} className="flex justify-between bg-slate-50 p-2 rounded text-sm border"><span className="font-bold">{i.name} ({i.qty})</span><span className="font-mono">{i.lot}</span></div>)}</div>
-                                                <div className="p-4 bg-slate-50 rounded-xl border space-y-3"><select className="w-full p-3 border rounded-lg bg-white" value={ingName} onChange={e=>setIngName(e.target.value)}><option value="">Seleziona...</option>{Object.values(inv).map(c=><optgroup key={c.id} label={c.name}>{c.products.map(p=><option key={p} value={p}>{p}</option>)}</optgroup>)}</select><div className="flex gap-2"><input className="w-24 p-3 border rounded-lg" placeholder="Q.tà" value={ingQty} onChange={e=>setIngQty(e.target.value)}/><div className="flex-1 flex gap-1"><input className="flex-1 p-3 border rounded-lg" placeholder="Lotto" value={ingLot} onChange={e=>setIngLot(e.target.value)}/><button type="button" onClick={()=>scan('ingredient')} className="p-3 bg-white border rounded-lg"><Camera size={20}/></button></div></div><button type="button" onClick={addIng} className="w-full py-3 bg-slate-800 text-white rounded-lg font-bold text-sm">+ AGGIUNGI</button></div>
+                                                <div className="space-y-2">{ingredients.map((ing, i) => <div key={i} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg text-sm border"><span className="font-bold">{ing.name} ({ing.qty})</span><span className="font-mono text-xs">{ing.lot}</span></div>)}</div>
+                                                <div className="p-4 bg-slate-50 rounded-xl border space-y-3"><select className="w-full p-3 border rounded-lg bg-white" value={newIngName} onChange={e=>setNewIngName(e.target.value)}><option value="">Seleziona...</option>{Object.values(inv).map(c=><optgroup key={c.id} label={c.name}>{c.products.map(p=><option key={p} value={p}>{p}</option>)}</optgroup>)}</select><div className="flex gap-2"><input className="w-24 p-3 border rounded-lg" placeholder="Q.tà" value={newIngQty} onChange={e=>setNewIngQty(e.target.value)}/><div className="flex-1 flex gap-1"><input className="flex-1 p-3 border rounded-lg" placeholder="Lotto" value={newIngLot} onChange={e=>setNewIngLot(e.target.value)}/><button type="button" onClick={()=>scan('ingredient')} className="p-3 bg-white border rounded-lg"><Camera size={20}/></button></div></div><button type="button" onClick={addIng} className="w-full py-3 bg-slate-800 text-white rounded-lg font-bold text-sm">+ AGGIUNGI</button></div>
                                             </div>
                                         )}
                                         <div><label className="text-xs font-bold text-slate-400 ml-1 mb-1 block">QUANTITÀ</label><input value={qty} onChange={e=>setQty(e.target.value)} className="w-full p-4 border-2 rounded-xl font-bold text-lg" placeholder="Es. 5 Kg"/></div>
