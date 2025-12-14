@@ -11,7 +11,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href='data:application/manifest+json;base64,eyJuYW1lIjoiSEFDQ1AgUHJvIiwiYHNob3J0X25hbWUiOiJIQUNDUCIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjZmZmZmZmIiwidGhlbWVfY29sb3IiOiIjZjk3MzE2IiwiaWNvbnMiOlt7InNyYyI6Imh0dHBzOi8vY2RuLWljb25zLXBuZy5mbGF0aWNvbi5jb20vNTEyLzEwNDYvMTA0Njg1Ny5wbmciLCJzaXplcyI6IjUxMng1MTIiLCJ0eXBlIjoiaW1hZ2UvcG5nIn1dfQ=='>
     
-    <title>HACCP Pro 15.1</title>
+    <title>HACCP Pro 14.2</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -19,10 +19,25 @@
         body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; padding-bottom: env(safe-area-inset-bottom); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         
-        #scanner-overlay { position: fixed; inset: 0; z-index: 9999; background: black; display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
-        #reader { width: 100%; height: 100%; position: relative; overflow: hidden; }
+        /* SCANNER FIX */
+        #scanner-overlay { position: fixed; inset: 0; z-index: 9999; background: black; display: flex; flex-direction: column; height: 100dvh; width: 100vw; overflow: hidden; }
+        #reader { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
         #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
-        .scan-region { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; aspect-ratio: 3/1; border: 2px solid #f97316; border-radius: 12px; pointer-events: none; z-index: 10; box-shadow: 0 0 0 9999px rgba(0,0,0,0.7); }
+        
+        #scanner-controls { 
+            position: absolute; bottom: 0; left: 0; width: 100%; z-index: 50; 
+            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px);
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+        }
+
+        .scan-region { 
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); 
+            width: 85%; aspect-ratio: 3.5/1; /* Più stretto per focalizzarsi sulla riga */
+            border: 2px solid #f97316; border-radius: 8px; 
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.85); /* Sfondo più scuro per focus */
+            pointer-events: none; z-index: 10; 
+        }
+
         @media print { body * { visibility: hidden; } #print-area, #print-area * { visibility: visible; } #print-area { position: fixed; left: 0; top: 0; width: 60mm; height: 40mm; } }
     </style>
 
@@ -50,24 +65,16 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useRef, Component } from 'react';
         import ReactDOM from 'react-dom/client';
-        import { Layers, Plus, History, Settings, Printer, Trash2, X, Camera, ScanLine, Zap, ChefHat, Package, Check, Cloud, Link as LinkIcon, Download, Upload, FileSpreadsheet, Lock, AlertTriangle } from 'lucide-react';
+        import { Layers, Plus, History, Settings, Printer, Trash2, X, Camera, ScanLine, Zap, ChefHat, Package, Check, Cloud, Link as LinkIcon, Download, Upload, FileSpreadsheet, Lock, AlertTriangle, MonitorDown } from 'lucide-react';
         import { Html5Qrcode } from 'html5-qrcode';
         import Tesseract from 'tesseract.js';
 
         // --- ERROR BOUNDARY ---
         class ErrorBoundary extends Component {
-            constructor(props) { super(props); this.state = { hasError: false, error: null }; }
-            static getDerivedStateFromError(error) { return { hasError: true, error }; }
+            constructor(props) { super(props); this.state = { hasError: false }; }
+            static getDerivedStateFromError(error) { return { hasError: true }; }
             render() {
-                if (this.state.hasError) return (
-                    <div className="h-screen flex flex-col items-center justify-center p-6 text-center bg-red-50">
-                        <AlertTriangle className="text-red-500 mb-4" size={48}/>
-                        <h1 className="text-xl font-bold text-red-900">Errore Applicazione</h1>
-                        <p className="text-sm text-red-700 mb-4">Dati corrotti rilevati.</p>
-                        <pre className="text-[10px] bg-white p-2 rounded mb-4 max-w-full overflow-hidden text-red-400">{this.state.error?.message}</pre>
-                        <button onClick={() => { localStorage.clear(); window.location.href = window.location.href; }} className="bg-red-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg active:scale-95">RESETTA TUTTO</button>
-                    </div>
-                );
+                if (this.state.hasError) return <div className="h-screen flex flex-col items-center justify-center p-6 text-center bg-red-50"><h1 className="text-xl font-bold text-red-900">Errore</h1><button onClick={() => { localStorage.clear(); window.location.reload(); }} className="mt-4 bg-red-600 text-white px-6 py-3 rounded-xl font-bold">RESET</button></div>;
                 return this.props.children;
             }
         }
@@ -78,7 +85,7 @@
             frigo: { id: 'frigo', name: 'Frigo', products: ['Mozzarella', 'Prosciutto', 'Salame'] }
         };
 
-        // --- SCANNER ---
+        // --- SCANNER POTENZIATO ---
         const Scanner = ({ onResult, onClose }) => {
             const [status, setStatus] = useState('Avvio...');
             const [isProcessing, setIsProcessing] = useState(false);
@@ -89,21 +96,21 @@
                 const initScanner = async () => {
                     try {
                         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                        stream.getTracks().forEach(track => track.stop()); 
+                        stream.getTracks().forEach(track => track.stop());
 
                         html5QrCode = new Html5Qrcode("reader");
                         scannerRef.current = html5QrCode;
                         
                         await html5QrCode.start(
                             { facingMode: "environment" },
-                            { fps: 15, qrbox: { width: 300, height: 150 }, aspectRatio: window.innerWidth/window.innerHeight },
+                            { fps: 15, qrbox: { width: 300, height: 100 }, aspectRatio: window.innerWidth/window.innerHeight },
                             (txt) => { stop(); onResult(txt); },
                             () => {}
                         );
                         setStatus("");
                     } catch (e) {
                         console.error(e);
-                        setStatus("ERRORE: Permesso Camera Negato.");
+                        setStatus("ERRORE: Clicca 'Consenti' per la fotocamera.");
                     }
                 };
                 setTimeout(initScanner, 300);
@@ -113,43 +120,95 @@
             const stop = () => { if(scannerRef.current) scannerRef.current.stop().catch(()=>{}); onClose(); };
 
             const extractLot = (text) => {
-                const clean = text.replace(/[^A-Z0-9\-\/\.\s:]/g, '');
+                // Rimuovi spazi extra e converti tutto in maiuscolo
+                const clean = text.toUpperCase().replace(/[^A-Z0-9\-\/\.\s:]/g, '');
+                
+                // 1. Cerca il formato specifico "000-25" (3 cifre, trattino, 2 cifre)
+                const simpleLotMatch = clean.match(/\b(\d{3}-\d{2})\b/);
+                if (simpleLotMatch) return simpleLotMatch[1];
+
+                // 2. Cerca Label esplicita (Lotto: ABC)
                 const labelMatch = clean.match(/(?:L\.|L:|LOTTO|BATCH|LOT)[.\s:]*([A-Z0-9\-\/]+)/i);
                 if (labelMatch) return labelMatch[1];
-                const dateLotMatch = clean.match(/\b(\d{3}-\d{2})\b/);
-                if (dateLotMatch) return dateLotMatch[1];
+
+                // 3. Fallback: cerca token che sembrano lotti
                 const tokens = clean.split(/\s+/);
-                for(const t of tokens) { if(t.length >= 3 && t.length <= 12 && /\d/.test(t) && /[A-Z]/.test(t)) return t; }
-                for(const t of tokens) { if(t.length >= 4 && t.length <= 10 && /^\d+$/.test(t)) return t; }
+                for(const t of tokens) { 
+                    // Deve contenere almeno un numero, lunghezza tra 4 e 12
+                    if(t.length >= 4 && t.length <= 12 && /\d/.test(t) && !t.includes('SCAD')) return t; 
+                }
                 return null;
+            };
+
+            const preprocessImage = (canvas) => {
+                const ctx = canvas.getContext('2d');
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const d = imgData.data;
+                // Binarizzazione (Soglia) per rendere il testo nero su bianco netto
+                // Questo elimina il rumore di fondo e i colori "Enz" strani
+                for (let i = 0; i < d.length; i += 4) {
+                    const r = d[i];
+                    const g = d[i + 1];
+                    const b = d[i + 2];
+                    // Scala di grigi
+                    const v = (0.2126 * r + 0.7152 * g + 0.0722 * b);
+                    // Soglia alta per testo scuro su fondo chiaro
+                    const bin = v > 100 ? 255 : 0; 
+                    d[i] = d[i+1] = d[i+2] = bin;
+                }
+                ctx.putImageData(imgData, 0, 0);
             };
 
             const takePhoto = async () => {
                 const vid = document.querySelector("#reader video");
                 if(!vid) return;
                 setIsProcessing(true);
-                setStatus('Analisi OCR...');
+                setStatus('Elaborazione...');
                 try {
                     const canvas = document.createElement('canvas');
-                    const scale = 800 / vid.videoWidth; 
-                    canvas.width = vid.videoWidth * scale;
-                    canvas.height = vid.videoHeight * scale;
+                    // Risoluzione media (non troppo alta per velocità, non troppo bassa per dettagli)
+                    const w = 800; 
+                    const h = (vid.videoHeight / vid.videoWidth) * w;
+                    canvas.width = w;
+                    canvas.height = h;
                     const ctx = canvas.getContext('2d');
-                    ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(vid, 0, 0, w, h);
                     
-                    const cw = canvas.width * 0.8; const ch = canvas.height * 0.25;
+                    // CROP CENTRALE (Focalizzati solo sul rettangolo arancione)
+                    const cropW = w * 0.85; 
+                    const cropH = h * 0.15; // Striscia molto stretta orizzontale
                     const cropCvs = document.createElement('canvas');
-                    cropCvs.width = cw; cropCvs.height = ch;
-                    cropCvs.getContext('2d').drawImage(canvas, (canvas.width-cw)/2, (canvas.height-ch)/2, cw, ch, 0, 0, cw, ch); 
+                    cropCvs.width = cropW; cropCvs.height = cropH;
+                    const cropCtx = cropCvs.getContext('2d');
+                    
+                    // Prendi il centro esatto
+                    cropCtx.drawImage(canvas, (w-cropW)/2, (h*0.4)- (cropH/2), cropW, cropH, 0, 0, cropW, cropH); 
 
-                    const res = await Tesseract.recognize(cropCvs.toDataURL('image/jpeg', 0.6), 'eng', { tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/. :' });
+                    // APPLICA FILTRO BIANCO/NERO
+                    preprocessImage(cropCvs);
+
+                    const res = await Tesseract.recognize(
+                        cropCvs.toDataURL('image/jpeg', 0.9), 
+                        'eng', 
+                        { 
+                            // Whitelist RIGIDA: Solo numeri, lettere maiuscole, trattini
+                            tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-/.',
+                            tessedit_pageseg_mode: '7' // Single Line Mode (Fondamentale per i lotti)
+                        }
+                    );
+
                     const found = extractLot(res.data.text);
                     
                     if(found) { stop(); onResult(found); } 
                     else { 
+                        // Debug: mostra cosa ha letto per capire
+                        console.log("Letto raw:", res.data.text);
                         const raw = res.data.text.replace(/[^A-Z0-9\-\/]/g, '').trim();
-                        if(raw.length > 2) { stop(); onResult(raw); }
-                        else { setStatus('Non trovato. Riprova.'); setTimeout(()=> { setStatus(''); setIsProcessing(false); }, 1500); }
+                        if(raw.length >= 3) { stop(); onResult(raw); }
+                        else { 
+                            setStatus('Non chiaro. Avvicinati.'); 
+                            setTimeout(()=> { setStatus(''); setIsProcessing(false); }, 1500); 
+                        }
                     }
                 } catch(e) { setStatus('Errore OCR'); setTimeout(()=>setIsProcessing(false), 2000); }
             };
@@ -160,15 +219,27 @@
                         <span className="font-bold flex gap-2"><ScanLine className="text-orange-500"/> SCANNER</span>
                         <button onClick={stop} className="bg-white/20 p-2 rounded-full"><X/></button>
                     </div>
+                    
                     <div id="reader"></div>
-                    {!isProcessing && status==="" && <div className="scan-region"><div className="absolute -top-10 w-full text-center text-white/90 text-sm font-bold bg-black/50 rounded-full py-1">INQUADRA IL CODICE</div></div>}
+                    
+                    {!isProcessing && status==="" && (
+                        <div className="scan-region">
+                            <div className="absolute -top-8 w-full text-center text-white/90 text-xs font-bold bg-black/50 rounded-full py-1">
+                                CENTRA IL CODICE QUI
+                            </div>
+                        </div>
+                    )}
                     {(status || isProcessing) && <div className="absolute inset-0 z-40 bg-black/80 flex flex-col items-center justify-center text-white p-4 text-center"><p className="font-bold text-xl">{status}</p></div>}
+                    
                     <div id="scanner-controls">
                         <div className="p-6 flex justify-center items-center gap-12">
-                             <div className="text-white/50 text-[10px] uppercase font-bold flex flex-col items-center gap-1"><div className="p-3 rounded-full border border-white/10"><Zap size={20}/></div>Auto</div>
+                             <div className="text-white/50 text-[10px] uppercase font-bold flex flex-col items-center gap-1">
+                                <div className="p-3 rounded-full border border-white/10"><Zap size={20}/></div>
+                                Auto
+                            </div>
                             <button onClick={takePhoto} className="flex flex-col items-center text-white gap-2 active:scale-95 transition-transform">
                                 <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-black border-4 border-slate-700 ring-2 ring-white/50 shadow-lg"><Camera size={32}/></div>
-                                <span className="text-xs font-bold text-white">SCATTA FOTO</span>
+                                <span className="text-xs font-bold text-white">SCATTA</span>
                             </button>
                         </div>
                     </div>
@@ -176,29 +247,23 @@
             );
         };
 
-        // --- GESTIONE MENU SAFE ---
+        // --- GESTIONE MENU & CLOUD SMART ---
         const MenuManager = ({ inventory, onUpdate }) => {
             const [newCat, setNewCat] = useState('');
             const [newProd, setNewProd] = useState('');
             const [selCat, setSelCat] = useState('');
             const [cloudUrl, setCloudUrl] = useState('');
-            const [savedUrl, setSavedUrl] = useState('');
+            const [savedUrl, setSavedUrl] = useState(''); 
             const fileInputRef = useRef(null);
 
-            // FIX: Effetto sicuro per selezione categoria
             useEffect(() => {
                 const keys = Object.keys(inventory);
                 if (keys.length > 0) {
-                    if (!selCat || !inventory[selCat]) {
-                        setSelCat(keys[0]);
-                    }
-                } else {
-                    setSelCat('');
-                }
+                    if (!selCat || !inventory[selCat]) setSelCat(keys[0]);
+                } else setSelCat('');
                 
                 const s = localStorage.getItem('haccp_cloud_url') || '';
-                setCloudUrl(s);
-                setSavedUrl(s);
+                setCloudUrl(s); setSavedUrl(s);
             }, [inventory]);
 
             const saveCloudUrl = () => { localStorage.setItem('haccp_cloud_url', cloudUrl.trim()); setSavedUrl(cloudUrl.trim()); alert("Salvato."); };
@@ -301,11 +366,7 @@
 
             useEffect(() => {
                 try {
-                    const i = localStorage.getItem('haccp_inv_v5'); 
-                    if(i) {
-                        const parsed = JSON.parse(i);
-                        if(parsed && typeof parsed === 'object') setInv(parsed);
-                    }
+                    const i = localStorage.getItem('haccp_inv_v5'); if(i) setInv(JSON.parse(i));
                     const l = localStorage.getItem('haccp_logs_v5'); if(l) setLogs(JSON.parse(l));
                     genLot();
                 } catch(e) { console.error(e); }
@@ -364,6 +425,7 @@
                         dev = await navigator.bluetooth.requestDevice({ filters:[{name:'4B-2054L'}], optionalServices:['000018f0-0000-1000-8000-00805f9b34fb'] });
                         await dev.gatt.connect();
                         printer.current = dev;
+                        dev.addEventListener('gattserverdisconnected', () => { printer.current = null; });
                     }
                     const svc = await dev.gatt.getPrimaryServices();
                     const char = (await svc[0].getCharacteristics()).find(c=>c.properties.write || c.properties.writeWithoutResponse);
