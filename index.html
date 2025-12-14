@@ -11,17 +11,39 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href='data:application/manifest+json;base64,eyJuYW1lIjoiSEFDQ1AgUHJvIiwiYHNob3J0X25hbWUiOiJIQUNDUCIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjZmZmZmZmIiwidGhlbWVfY29sb3IiOiIjZjk3MzE2IiwiaWNvbnMiOlt7InNyYyI6Imh0dHBzOi8vY2RuLWljb25zLXBuZy5mbGF0aWNvbi5jb20vNTEyLzEwNDYvMTA0Njg1Ny5wbmciLCJzaXplcyI6IjUxMng1MTIiLCJ0eXBlIjoiaW1hZ2UvcG5nIn1dfQ=='>
     
-    <title>HACCP Pro 14.0</title>
+    <title>HACCP Pro 14.1</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; padding-bottom: env(safe-area-inset-bottom); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        #scanner-overlay { position: fixed; inset: 0; z-index: 9999; background: black; display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
-        #reader { width: 100%; height: 100%; position: relative; overflow: hidden; }
+        
+        /* SCANNER STYLE FIX */
+        #scanner-overlay { position: fixed; inset: 0; z-index: 9999; background: black; height: 100dvh; width: 100vw; overflow: hidden; }
+        #reader { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
         #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
-        .scan-region { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; aspect-ratio: 3/1; border: 2px solid #f97316; border-radius: 12px; pointer-events: none; z-index: 10; box-shadow: 0 0 0 9999px rgba(0,0,0,0.7); }
+        
+        /* CONTROLLI SCANNER FISSI IN BASSO */
+        #scanner-controls { 
+            position: absolute; 
+            bottom: 0; 
+            left: 0; 
+            width: 100%; 
+            z-index: 50; 
+            background: rgba(15, 23, 42, 0.9); 
+            backdrop-filter: blur(10px);
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+        }
+
+        .scan-region { 
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); 
+            width: 80%; aspect-ratio: 3/1; 
+            border: 2px solid #f97316; border-radius: 12px; 
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.7); 
+            pointer-events: none; z-index: 10; 
+        }
+
         @media print { body * { visibility: hidden; } #print-area, #print-area * { visibility: visible; } #print-area { position: fixed; left: 0; top: 0; width: 60mm; height: 40mm; } }
     </style>
 
@@ -49,7 +71,7 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useRef, Component } from 'react';
         import ReactDOM from 'react-dom/client';
-        import { Layers, Plus, History, Settings, Printer, Trash2, X, Camera, ScanLine, Zap, ChefHat, Package, Check, Cloud, Link as LinkIcon, Download, Upload, FileSpreadsheet, Lock, AlertTriangle } from 'lucide-react';
+        import { Layers, Plus, History, Settings, Printer, Trash2, X, Camera, ScanLine, Zap, ChefHat, Package, Check, Cloud, Link as LinkIcon, Download, Upload, FileSpreadsheet, Lock, AlertTriangle, MonitorDown } from 'lucide-react';
         import { Html5Qrcode } from 'html5-qrcode';
         import Tesseract from 'tesseract.js';
 
@@ -69,7 +91,7 @@
             frigo: { id: 'frigo', name: 'Frigo', products: ['Mozzarella', 'Prosciutto', 'Salame'] }
         };
 
-        // --- SCANNER CON PERMESSO FORZATO ---
+        // --- SCANNER FIXED ---
         const Scanner = ({ onResult, onClose }) => {
             const [status, setStatus] = useState('Avvio...');
             const [isProcessing, setIsProcessing] = useState(false);
@@ -79,10 +101,8 @@
                 let html5QrCode;
                 const initScanner = async () => {
                     try {
-                        // FIX: Richiedi permesso esplicito prima di inizializzare la libreria
                         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                        // Se siamo qui, il permesso è dato. Fermiamo lo stream per darlo alla libreria.
-                        stream.getTracks().forEach(track => track.stop());
+                        stream.getTracks().forEach(track => track.stop()); // Stop stream, just checking perm
 
                         html5QrCode = new Html5Qrcode("reader");
                         scannerRef.current = html5QrCode;
@@ -96,12 +116,10 @@
                         setStatus("");
                     } catch (e) {
                         console.error(e);
-                        setStatus("ERRORE: Permesso negato o Camera non trovata.");
+                        setStatus("ERRORE: Permesso Camera Negato.");
                     }
                 };
-                // Piccolo timeout per DOM
                 setTimeout(initScanner, 300);
-                
                 return () => { if(html5QrCode?.isScanning) html5QrCode.stop().catch(()=>{}); };
             }, []);
 
@@ -111,8 +129,6 @@
                 const clean = text.replace(/[^A-Z0-9\-\/\.\s:]/g, '');
                 const labelMatch = clean.match(/(?:L\.|L:|LOTTO|BATCH|LOT)[.\s:]*([A-Z0-9\-\/]+)/i);
                 if (labelMatch) return labelMatch[1];
-                const dateLotMatch = clean.match(/\b(\d{3}-\d{2})\b/);
-                if (dateLotMatch) return dateLotMatch[1];
                 const tokens = clean.split(/\s+/);
                 for(const t of tokens) { if(t.length >= 3 && t.length <= 12 && /\d/.test(t) && /[A-Z]/.test(t)) return t; }
                 for(const t of tokens) { if(t.length >= 4 && t.length <= 10 && /^\d+$/.test(t)) return t; }
@@ -135,7 +151,7 @@
                     const cw = canvas.width * 0.8; const ch = canvas.height * 0.25;
                     const cropCvs = document.createElement('canvas');
                     cropCvs.width = cw; cropCvs.height = ch;
-                    cropCvs.getContext('2d').drawImage(canvas, (canvas.width-cw)/2, (canvas.height-ch)/2, cw, ch, 0, 0, cw, ch);
+                    cropCvs.getContext('2d').drawImage(canvas, (canvas.width-cw)/2, (canvas.height-ch)/2, cw, ch, 0, 0, cw, ch); // Crop Center
 
                     const res = await Tesseract.recognize(cropCvs.toDataURL('image/jpeg', 0.6), 'eng', { tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/. :' });
                     const found = extractLot(res.data.text);
@@ -151,41 +167,58 @@
 
             return (
                 <div id="scanner-overlay">
-                    <div className="p-4 flex justify-between text-white bg-black/50 z-10 absolute w-full top-0">
-                        <span className="font-bold flex gap-2"><ScanLine/> SCANNER</span>
-                        <button onClick={stop}><X/></button>
+                    <div className="absolute top-0 w-full flex justify-between p-4 text-white bg-gradient-to-b from-black/80 to-transparent z-50">
+                        <span className="font-bold flex gap-2"><ScanLine className="text-orange-500"/> SCANNER</span>
+                        <button onClick={stop} className="bg-white/20 p-2 rounded-full"><X/></button>
                     </div>
-                    <div id="scanner-video-container">
-                        <div id="reader"></div>
-                        {!isProcessing && <div className="scan-region"><div className="absolute -top-10 w-full text-center text-white/90 text-sm font-bold bg-black/50 rounded-full py-1">INQUADRA IL CODICE</div></div>}
-                        {(status || isProcessing) && <div className="absolute inset-0 z-20 bg-black/80 flex flex-col items-center justify-center text-white p-4 text-center"><p className="font-bold text-xl">{status}</p></div>}
-                    </div>
-                    <div id="scanner-controls" className="bg-slate-900 p-8 flex justify-center z-10">
-                        <button onClick={takePhoto} className="flex flex-col items-center text-white gap-2">
-                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-black border-4 border-slate-700 ring-2 ring-white/50 shadow-lg"><Camera size={32}/></div>
-                            <span className="text-xs font-bold mt-2">FOTO TESTO</span>
-                        </button>
+                    
+                    <div id="reader"></div>
+                    
+                    {!isProcessing && status==="" && <div className="scan-region"><div className="absolute -top-10 w-full text-center text-white/90 text-sm font-bold bg-black/50 rounded-full py-1">INQUADRA IL CODICE</div></div>}
+                    {(status || isProcessing) && <div className="absolute inset-0 z-40 bg-black/80 flex flex-col items-center justify-center text-white p-4 text-center"><p className="font-bold text-xl">{status}</p></div>}
+                    
+                    <div id="scanner-controls">
+                        <div className="p-6 flex justify-center items-center gap-12">
+                             <div className="text-white/50 text-[10px] uppercase font-bold flex flex-col items-center gap-1">
+                                <div className="p-3 rounded-full border border-white/10"><Zap size={20}/></div>
+                                Auto
+                            </div>
+                            <button onClick={takePhoto} className="flex flex-col items-center text-white gap-2 active:scale-95 transition-transform">
+                                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-black border-4 border-slate-700 ring-2 ring-white/50 shadow-lg"><Camera size={32}/></div>
+                                <span className="text-xs font-bold text-white">SCATTA FOTO</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             );
         };
 
-        // --- COMPONENTI GESTIONALI ---
+        // --- GESTIONE MENU & CLOUD SMART ---
         const MenuManager = ({ inventory, onUpdate }) => {
             const [newCat, setNewCat] = useState('');
             const [newProd, setNewProd] = useState('');
             const [selCat, setSelCat] = useState(() => Object.keys(inventory)[0] || '');
             const [cloudUrl, setCloudUrl] = useState('');
-            const [isSavedUrl, setIsSavedUrl] = useState(false);
+            const [savedUrl, setSavedUrl] = useState(''); // Stato reale salvato
             const fileInputRef = useRef(null);
 
             useEffect(() => {
                 if (selCat && !inventory[selCat] && Object.keys(inventory).length > 0) setSelCat(Object.keys(inventory)[0]);
-                const savedUrl = localStorage.getItem('haccp_cloud_url');
-                if(savedUrl) setCloudUrl(savedUrl);
+                const s = localStorage.getItem('haccp_cloud_url') || '';
+                setCloudUrl(s);
+                setSavedUrl(s);
             }, [inventory, selCat]);
 
-            const saveCloudUrl = () => { localStorage.setItem('haccp_cloud_url', cloudUrl.trim()); setIsSavedUrl(true); setTimeout(()=>setIsSavedUrl(false), 2000); };
+            const saveCloudUrl = () => { 
+                localStorage.setItem('haccp_cloud_url', cloudUrl.trim()); 
+                setSavedUrl(cloudUrl.trim());
+                alert("Link salvato correttamente.");
+            };
+            
+            // Logica bottone dinamico
+            const isDirty = cloudUrl !== savedUrl;
+            const isConfigured = savedUrl.length > 0;
+
             const addCategory = () => { if (!newCat.trim()) return; const id = newCat.toLowerCase().replace(/\s+/g, ''); if (inventory[id]) return alert("Esiste"); onUpdate({ ...inventory, [id]: { id, name: newCat, products: [] } }); setNewCat(''); setSelCat(id); };
             const deleteCategory = (id) => { if (!confirm("Eliminare?")) return; const updated = { ...inventory }; delete updated[id]; onUpdate(updated); };
             const addProduct = () => { if (!newProd.trim() || !selCat) return; const cat = inventory[selCat]; onUpdate({ ...inventory, [selCat]: { ...cat, products: [...cat.products, newProd.trim()] } }); setNewProd(''); };
@@ -222,12 +255,36 @@
                 reader.readAsText(file);
             };
 
+            const installApp = () => {
+                if (window.deferredPrompt) {
+                    window.deferredPrompt.prompt();
+                    window.deferredPrompt.userChoice.then((choiceResult) => { window.deferredPrompt = null; });
+                } else {
+                    alert("Per installare:\niPad: Condividi > Aggiungi a Home\nAndroid: Menu > Installa App");
+                }
+            };
+
             return (
                 <div className="p-4 md:p-8 space-y-8 pb-20 animate-in fade-in max-w-5xl mx-auto">
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 shadow-sm flex justify-between items-center">
+                        <div className="text-indigo-900 font-bold flex items-center gap-2"><Smartphone size={20}/> App Mobile</div>
+                        <button onClick={installApp} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow flex items-center gap-2"><MonitorDown size={16}/> INSTALLA</button>
+                    </div>
+
                     <div className="grid md:grid-cols-2 gap-4">
-                        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6 shadow-sm">
-                            <h3 className="font-bold text-blue-900 flex items-center gap-2 mb-2"><Cloud size={20}/> Cloud Sync</h3>
-                            <div className="flex gap-2"><div className="relative flex-1"><LinkIcon size={16} className="absolute left-3 top-3.5 text-blue-400"/><input className="w-full pl-9 pr-3 py-3 border border-blue-200 rounded-xl text-sm" placeholder="URL Google Script..." value={cloudUrl} onChange={e => setCloudUrl(e.target.value)}/></div><button onClick={saveCloudUrl} className={`px-6 rounded-xl font-bold text-white ${isSavedUrl?'bg-green-500':'bg-blue-600'}`}>{isSavedUrl?<Check/>:'SALVA'}</button></div>
+                        <div className={`border rounded-2xl p-6 shadow-sm transition-colors ${isConfigured ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-100'}`}>
+                            <h3 className={`font-bold flex items-center gap-2 mb-2 ${isConfigured ? 'text-green-800' : 'text-blue-900'}`}>
+                                <Cloud size={20}/> {isConfigured ? 'Cloud Connesso' : 'Cloud Sync (Google)'}
+                            </h3>
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <LinkIcon size={16} className="absolute left-3 top-3.5 text-gray-400"/>
+                                    <input className="w-full pl-9 pr-3 py-3 border border-white rounded-xl text-sm bg-white" placeholder="URL Google Script..." value={cloudUrl} onChange={e => setCloudUrl(e.target.value)}/>
+                                </div>
+                                <button onClick={saveCloudUrl} disabled={!isDirty && isConfigured} className={`px-4 rounded-xl font-bold text-white transition-all ${!isDirty && isConfigured ? 'bg-green-500 opacity-80 cursor-default' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                                    {!isDirty && isConfigured ? 'SALVATO' : 'SALVA'}
+                                </button>
+                            </div>
                         </div>
                         <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 shadow-sm">
                             <h3 className="font-bold text-emerald-900 flex items-center gap-2 mb-4"><FileSpreadsheet size={20}/> Backup Menu</h3>
@@ -284,6 +341,7 @@
             const printer = useRef(null);
 
             useEffect(() => {
+                window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); window.deferredPrompt = e; });
                 try {
                     const i = localStorage.getItem('haccp_inv_v5'); if(i) setInv(JSON.parse(i));
                     const l = localStorage.getItem('haccp_logs_v5'); if(l) setLogs(JSON.parse(l));
@@ -352,13 +410,16 @@
                     const enc = new TextEncoder();
                     let cmds = `SIZE 60 mm,40 mm\nCLS\nBOX 10,10,470,310,3\n`;
                     let y = 30;
+
                     const pLines = wrapText(item.prod, 18);
                     pLines.forEach(l => { cmds += `TEXT 240,${y},"3",0,1,1,2,"${l}"\n`; y+=35; });
+                    
                     cmds += `TEXT 240,${y},"2",0,1,1,2,"(${item.cat})"\n`; y+=30;
                     cmds += `BAR 10,${y},460,2\n`; y+=10;
                     cmds += `TEXT 30,${y},"2",0,1,1,"L: ${item.lot}"\n`;
                     cmds += `TEXT 300,${y},"2",0,1,1,"Q: ${item.qty}"\n`;
                     y+=35;
+
                     if(item.ingredients) {
                         item.ingredients.forEach(i => { 
                             const lineStr = `- ${i.name} [${i.lot}]`;
@@ -366,19 +427,16 @@
                             iLines.forEach(l => { if(y<265) { cmds += `TEXT 20,${y},"1",0,1,1,"${l}"\n`; y+=20; } });
                         });
                     }
+
                     cmds += `BAR 10,270,460,2\nTEXT 30,285,"2",0,1,1,"${item.date}"\nTEXT 300,285,"2",0,1,1,"Scad: +3gg"\nPRINT 1\nEND`;
+                    
                     const data = enc.encode(cmds);
                     for(let i=0; i<data.length; i+=100) await char.writeValue(data.slice(i, i+100));
+
                 } catch(e) { alert("Stampa BT fallita."); window.print(); }
             };
 
-            const triggerScan = (t) => {
-                if (t==='main') { 
-                    setScanTarget(t); setScanning(true); 
-                } else {
-                    setScanTarget(t); setScanning(true);
-                }
-            };
+            const triggerScan = (t) => { setScanTarget(t); setScanning(true); };
             const onScanResult = (t) => { if(scanTarget==='main') setLot(t); else setIngLot(t); setScanning(false); };
             const addIng = () => { if(!ingName||!ingQty) return alert("Dati mancanti"); setIngs([...ings, {name:ingName, lot:ingLot||'N/A', qty:ingQty}]); setIngName(''); setIngLot(''); setIngQty(''); };
 
