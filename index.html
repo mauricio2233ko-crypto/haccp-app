@@ -11,48 +11,13 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href='data:application/manifest+json;base64,eyJuYW1lIjoiSEFDQ1AgUHJvIiwiYHNob3J0X25hbWUiOiJIQUNDUCIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjZmZmZmZmIiwidGhlbWVfY29sb3IiOiIjZjk3MzE2IiwiaWNvbnMiOlt7InNyYyI6Imh0dHBzOi8vY2RuLWljb25zLXBuZy5mbGF0aWNvbi5jb20vNTEyLzEwNDYvMTA0Njg1Ny5wbmciLCJzaXplcyI6IjUxMng1MTIiLCJ0eXBlIjoiaW1hZ2UvcG5nIn1dfQ=='>
     
-    <title>HACCP Pro 16.0</title>
+    <title>HACCP Pro AI</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; padding-bottom: env(safe-area-inset-bottom); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        
-        /* SCANNER FULLSCREEN FIX */
-        #scanner-overlay { position: fixed; inset: 0; z-index: 9999; background: black; display: flex; flex-direction: column; height: 100dvh; width: 100vw; overflow: hidden; }
-        
-        /* VIDEO AREA - Occupa tutto lo spazio disponibile sopra i controlli */
-        #scanner-video-container { 
-            flex: 1; 
-            position: relative; 
-            overflow: hidden; 
-            background: black; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-        }
-        
-        #reader { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
-        #reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
-        
-        /* CONTROLLI SCANNER FISSI IN BASSO */
-        #scanner-controls { 
-            width: 100%; 
-            z-index: 50; 
-            background: rgba(15, 23, 42, 0.95); 
-            padding-bottom: max(20px, env(safe-area-inset-bottom));
-            border-top: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .scan-region { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            width: 80%; aspect-ratio: 3/1; 
-            border: 2px solid #f97316; border-radius: 12px; 
-            box-shadow: 0 0 0 9999px rgba(0,0,0,0.7); 
-            pointer-events: none; z-index: 10; 
-        }
-
         @media print { body * { visibility: hidden; } #print-area, #print-area * { visibility: visible; } #print-area { position: fixed; left: 0; top: 0; width: 60mm; height: 40mm; } }
     </style>
 
@@ -61,9 +26,7 @@
       "imports": {
         "react": "https://esm.sh/react@18.2.0",
         "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-        "lucide-react": "https://esm.sh/lucide-react@0.263.1",
-        "html5-qrcode": "https://esm.sh/html5-qrcode@2.3.8",
-        "tesseract.js": "https://esm.sh/tesseract.js@5.0.3"
+        "lucide-react": "https://esm.sh/lucide-react@0.263.1"
       }
     }
     </script>
@@ -73,36 +36,20 @@
     <div id="root">
         <div class="flex h-screen items-center justify-center text-slate-400 gap-2">
             <div class="animate-spin h-6 w-6 border-2 border-orange-500 border-t-transparent rounded-full"></div>
-            Caricamento...
         </div>
     </div>
 
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useRef, Component } from 'react';
         import ReactDOM from 'react-dom/client';
-        // IMPORT DI TUTTE LE ICONE NECESSARIE (Incluso Smartphone e MonitorDown)
-        import { 
-            Layers, Plus, History, Settings, Printer, Trash2, X, Camera, 
-            ScanLine, Zap, ChevronRight, Edit3, Save, ChefHat, Package, Check, ArrowRight,
-            FileText, Bluetooth, List, Lock, Smartphone, Share, MoreVertical, Cloud, Link as LinkIcon, 
-            Download, Upload, FileSpreadsheet, AlertTriangle, MonitorDown, Loader2
-        } from 'lucide-react';
-        import { Html5Qrcode } from 'html5-qrcode';
-        import Tesseract from 'tesseract.js';
+        import { Layers, Plus, History, Settings, Printer, Trash2, X, Camera, ScanLine, Zap, ChefHat, Package, Check, Cloud, Link as LinkIcon, Download, Upload, FileSpreadsheet, Lock, AlertTriangle, MonitorDown, Loader2 } from 'lucide-react';
 
         // --- ERROR BOUNDARY ---
         class ErrorBoundary extends Component {
-            constructor(props) { super(props); this.state = { hasError: false, error: null }; }
-            static getDerivedStateFromError(error) { return { hasError: true, error }; }
+            constructor(props) { super(props); this.state = { hasError: false }; }
+            static getDerivedStateFromError(error) { return { hasError: true }; }
             render() {
-                if (this.state.hasError) return (
-                    <div className="h-screen flex flex-col items-center justify-center p-6 text-center bg-red-50">
-                        <AlertTriangle className="text-red-500 mb-4" size={48}/>
-                        <h1 className="text-xl font-bold text-red-900">Errore Applicazione</h1>
-                        <p className="text-sm text-red-700 mb-4 font-mono text-xs max-w-xs mx-auto overflow-hidden">{this.state.error?.message}</p>
-                        <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="mt-4 bg-red-600 text-white px-8 py-4 rounded-xl font-bold shadow-lg active:scale-95">RESETTA TUTTO</button>
-                    </div>
-                );
+                if (this.state.hasError) return <div className="h-screen flex flex-col items-center justify-center p-6 text-center bg-red-50"><h1 className="text-xl font-bold text-red-900">Errore</h1><button onClick={() => { localStorage.clear(); window.location.reload(); }} className="mt-4 bg-red-600 text-white px-6 py-3 rounded-xl font-bold">RESET</button></div>;
                 return this.props.children;
             }
         }
@@ -113,154 +60,110 @@
             frigo: { id: 'frigo', name: 'Frigo', products: ['Mozzarella', 'Prosciutto', 'Salame'] }
         };
 
-        // --- SCANNER FIXED ---
-        const Scanner = ({ onResult, onClose }) => {
-            const [status, setStatus] = useState('Avvio...');
-            const [isProcessing, setIsProcessing] = useState(false);
-            const scannerRef = useRef(null);
+        // --- COMPONENTE SCANNER AI NATIVO ---
+        const AIScannerInput = ({ value, onChange, onDataFound }) => {
+            const [loading, setLoading] = useState(false);
+            const fileInputRef = useRef(null);
 
-            useEffect(() => {
-                let html5QrCode;
-                const initScanner = async () => {
+            const handleFile = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                setLoading(true);
+                
+                // 1. Leggi file come Base64
+                const reader = new FileReader();
+                reader.onloadend = async () => {
+                    const base64 = reader.result.split(',')[1];
+                    const cloudUrl = localStorage.getItem('haccp_cloud_url');
+
+                    if (!cloudUrl) {
+                        alert("ERRORE: Configura il Link Cloud nelle Impostazioni per usare l'AI.");
+                        setLoading(false);
+                        return;
+                    }
+
                     try {
-                        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                        stream.getTracks().forEach(track => track.stop());
-
-                        html5QrCode = new Html5Qrcode("reader");
-                        scannerRef.current = html5QrCode;
+                        // 2. Invia a Google Script (Gemini)
+                        // Usa fetch con redirect 'follow' per gestire la risposta di Apps Script
+                        const formData = new FormData();
+                        // Google Apps Script doPost richiede un payload specifico
+                        // Poiché 'no-cors' non permette di leggere la risposta, usiamo un trucco:
+                        // La chiamata fetch standard a Apps Script spesso fallisce per CORS se non configurata perfettamente.
+                        // Tuttavia, Apps Script Web App pubblicato come "Anyone" supporta redirect.
                         
-                        await html5QrCode.start(
-                            { facingMode: "environment" },
-                            { 
-                                fps: 15, 
-                                qrbox: { width: 280, height: 100 }, 
-                                aspectRatio: window.innerWidth/window.innerHeight 
-                            },
-                            (txt) => { stop(); onResult(txt); },
-                            () => {}
-                        );
-                        setStatus("");
-                    } catch (e) {
-                        console.error(e);
-                        setStatus("ERRORE: Permesso Camera Negato.");
+                        const payload = JSON.stringify({ action: "scan_image", image: base64 });
+                        
+                        // NOTA TECNICA: Per leggere la risposta JSON da Apps Script in un client statico,
+                        // lo script deve usare ContentService.createTextOutput e il client deve seguire i redirect.
+                        const response = await fetch(cloudUrl, {
+                            method: 'POST',
+                            body: payload
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            // 3. Usa i dati trovati
+                            if (data.lot) onChange(data.lot);
+                            if (onDataFound) onDataFound(data);
+                        } else {
+                            alert("AI non ha trovato dati. Riprova.");
+                        }
+
+                    } catch (err) {
+                        console.error(err);
+                        alert("Errore AI: Assicurati che lo script Google sia pubblicato come 'Chiunque' (Anyone) e la chiave API sia valida. \n\n" + err.message);
+                    } finally {
+                        setLoading(false);
+                        // Reset input
+                        if(fileInputRef.current) fileInputRef.current.value = '';
                     }
                 };
-                setTimeout(initScanner, 300);
-                return () => { if(html5QrCode?.isScanning) html5QrCode.stop().catch(()=>{}); };
-            }, []);
-
-            const stop = () => { if(scannerRef.current) scannerRef.current.stop().catch(()=>{}); onClose(); };
-
-            const extractLot = (text) => {
-                const clean = text.replace(/[^A-Z0-9\-\/\.\s:]/g, '');
-                const labelMatch = clean.match(/(?:L\.|L:|LOTTO|BATCH|LOT)[.\s:]*([A-Z0-9\-\/]+)/i);
-                if (labelMatch) return labelMatch[1];
-                const tokens = clean.split(/\s+/);
-                for(const t of tokens) { if(t.length >= 4 && t.length <= 15 && /\d/.test(t) && /[A-Z]/.test(t)) return t; }
-                for(const t of tokens) { if(t.length >= 4 && t.length <= 10 && /^\d+$/.test(t)) return t; }
-                return null;
-            };
-
-            const takePhoto = async () => {
-                const vid = document.querySelector("#reader video");
-                if(!vid) return;
-                setIsProcessing(true);
-                setStatus('Analisi OCR...');
-                try {
-                    const canvas = document.createElement('canvas');
-                    const scale = 800 / vid.videoWidth; 
-                    canvas.width = vid.videoWidth * scale;
-                    canvas.height = vid.videoHeight * scale;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
-                    
-                    const cw = canvas.width * 0.8; const ch = canvas.height * 0.25;
-                    const cropCvs = document.createElement('canvas');
-                    cropCvs.width = cw; cropCvs.height = ch;
-                    cropCvs.getContext('2d').drawImage(canvas, (canvas.width-cw)/2, (canvas.height-ch)/2, cw, ch, 0, 0, cw, ch);
-
-                    const res = await Tesseract.recognize(cropCvs.toDataURL('image/jpeg', 0.6), 'eng', { tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/. :' });
-                    const found = extractLot(res.data.text);
-                    
-                    if(found) { stop(); onResult(found); } 
-                    else { 
-                        const raw = res.data.text.replace(/[^A-Z0-9\-\/]/g, '').trim();
-                        if(raw.length > 2) { stop(); onResult(raw); }
-                        else { setStatus('Non trovato. Riprova.'); setTimeout(()=> { setStatus(''); setIsProcessing(false); }, 1500); }
-                    }
-                } catch(e) { setStatus('Errore OCR'); setTimeout(()=>setIsProcessing(false), 2000); }
+                reader.readAsDataURL(file);
             };
 
             return (
-                <div id="scanner-overlay">
-                    <div className="absolute top-0 w-full flex justify-between p-4 text-white bg-gradient-to-b from-black/80 to-transparent z-50">
-                        <span className="font-bold flex gap-2"><ScanLine className="text-orange-500"/> SCANNER</span>
-                        <button onClick={stop} className="bg-white/20 p-2 rounded-full"><X/></button>
-                    </div>
+                <div className="flex gap-2">
+                    <input 
+                        className="flex-1 p-4 border-2 border-slate-200 rounded-xl font-mono font-bold text-lg uppercase outline-none focus:border-orange-500 transition-all" 
+                        placeholder="SCAN o SCRIVI..." 
+                        value={value} 
+                        onChange={e => onChange(e.target.value)} 
+                    />
                     
-                    <div id="scanner-video-container">
-                        <div id="reader"></div>
-                        
-                        {!isProcessing && status==="" && <div className="scan-region"><div className="absolute -top-10 w-full text-center text-white/90 text-sm font-bold bg-black/50 rounded-full py-1">INQUADRA IL CODICE</div></div>}
-                        {(status || isProcessing) && <div className="absolute inset-0 z-40 bg-black/80 flex flex-col items-center justify-center text-white p-4 text-center">
-                            {isProcessing && <Loader2 size={48} className="animate-spin text-orange-500 mb-4"/>}
-                            <p className="font-bold text-xl">{status}</p>
-                        </div>}
-                    </div>
+                    <input 
+                        type="file" 
+                        accept="image/*" 
+                        capture="environment" 
+                        ref={fileInputRef} 
+                        onChange={handleFile} 
+                        className="hidden" 
+                    />
                     
-                    <div id="scanner-controls">
-                        <div className="p-6 flex justify-center items-center gap-12">
-                             <div className="text-white/50 text-[10px] uppercase font-bold flex flex-col items-center gap-1">
-                                <div className="p-3 rounded-full border border-white/10"><Zap size={20}/></div>
-                                Auto
-                            </div>
-                            <button onClick={takePhoto} className="flex flex-col items-center text-white gap-2 active:scale-95 transition-transform">
-                                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-black border-4 border-slate-700 ring-2 ring-white/50 shadow-lg"><Camera size={32}/></div>
-                                <span className="text-xs font-bold text-white">SCATTA FOTO</span>
-                            </button>
-                        </div>
-                    </div>
+                    <button 
+                        type="button" 
+                        onClick={() => fileInputRef.current.click()} 
+                        className={`p-4 rounded-xl shadow-md transition-transform active:scale-95 border-2 ${loading ? 'bg-slate-100 border-slate-200' : 'bg-orange-50 border-orange-200 text-orange-600'}`}
+                        disabled={loading}
+                    >
+                        {loading ? <Loader2 className="animate-spin" size={24}/> : <Camera size={24}/>}
+                    </button>
                 </div>
             );
         };
 
-        // --- COMPONENTE BUTTON ---
-        const Button = ({ children, fullWidth, className = '', ...props }) => (
-            <button className={`px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center ${fullWidth ? 'w-full' : ''} ${className}`} {...props}>
-                {children}
-            </button>
-        );
-
-        // --- COMPONENTE INPUT SCANNER ---
-        const SmartLotInput = ({ label, value, onChange }) => {
-            const [scanning, setScanning] = useState(false);
-            return (
-                <div>
-                    {label && <label className="text-xs font-bold text-slate-400 mb-1 block">{label}</label>}
-                    <div className="flex gap-2">
-                        <input value={value} onChange={e=>onChange(e.target.value)} className="flex-1 p-3 border-2 border-slate-100 rounded-xl font-mono font-bold uppercase outline-none focus:border-orange-400 transition-colors" placeholder="..." />
-                        <button type="button" onClick={()=>setScanning(true)} className="p-3 bg-orange-100 text-orange-600 rounded-lg"><Camera size={20}/></button>
-                    </div>
-                    {scanning && <Scanner onResult={(txt)=>{onChange(txt); setScanning(false);}} onClose={()=>setScanning(false)} />}
-                </div>
-            );
-        };
-
-        // --- GESTIONE MENU SAFE ---
+        // --- GESTIONE MENU ---
         const MenuManager = ({ inventory, onUpdate }) => {
             const [newCat, setNewCat] = useState('');
             const [newProd, setNewProd] = useState('');
             const [selCat, setSelCat] = useState('');
             const [cloudUrl, setCloudUrl] = useState('');
             const [savedUrl, setSavedUrl] = useState(''); 
-            const fileInputRef = useRef(null);
 
             useEffect(() => {
                 const keys = Object.keys(inventory);
-                if (keys.length > 0) {
-                    if (!selCat || !inventory[selCat]) setSelCat(keys[0]);
-                } else setSelCat('');
-                
+                if (keys.length > 0 && (!selCat || !inventory[selCat])) setSelCat(keys[0]);
                 const s = localStorage.getItem('haccp_cloud_url') || '';
                 setCloudUrl(s); setSavedUrl(s);
             }, [inventory]);
@@ -305,27 +208,11 @@
                 reader.readAsText(file);
             };
 
-            const installApp = () => {
-                if (window.deferredPrompt) {
-                    window.deferredPrompt.prompt();
-                    window.deferredPrompt.userChoice.then((choiceResult) => { window.deferredPrompt = null; });
-                } else {
-                    alert("Per installare:\niPad: Condividi > Aggiungi a Home\nAndroid: Menu > Installa App");
-                }
-            };
-            
-            const currentProducts = (inventory[selCat] && Array.isArray(inventory[selCat].products)) ? inventory[selCat].products : [];
-
             return (
                 <div className="p-4 md:p-8 space-y-8 pb-20 animate-in fade-in max-w-5xl mx-auto">
-                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 shadow-sm flex justify-between items-center">
-                        <div className="text-indigo-900 font-bold flex items-center gap-2"><Smartphone size={20}/> App Mobile</div>
-                        <button onClick={installApp} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow flex items-center gap-2"><MonitorDown size={16}/> INSTALLA</button>
-                    </div>
-
                     <div className="grid md:grid-cols-2 gap-4">
                         <div className={`border rounded-2xl p-6 shadow-sm ${isConfigured ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-100'}`}>
-                            <h3 className={`font-bold flex items-center gap-2 mb-2 ${isConfigured ? 'text-green-800' : 'text-blue-900'}`}><Cloud size={20}/> {isConfigured ? 'Cloud Attivo' : 'Cloud Sync'}</h3>
+                            <h3 className={`font-bold flex items-center gap-2 mb-2 ${isConfigured ? 'text-green-800' : 'text-blue-900'}`}><Cloud size={20}/> {isConfigured ? 'Cloud Attivo' : 'Cloud Sync (AI)'}</h3>
                             <div className="flex gap-2"><div className="relative flex-1"><LinkIcon size={16} className="absolute left-3 top-3.5 text-gray-400"/><input className="w-full pl-9 pr-3 py-3 border border-white rounded-xl text-sm bg-white" placeholder="URL Script..." value={cloudUrl} onChange={e => setCloudUrl(e.target.value)}/></div><button onClick={saveCloudUrl} disabled={!isDirty && isConfigured} className={`px-4 rounded-xl font-bold text-white ${!isDirty && isConfigured ? 'bg-green-500 opacity-80' : 'bg-blue-600'}`}>{!isDirty && isConfigured ? 'OK' : 'SALVA'}</button></div>
                         </div>
                         <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 shadow-sm">
@@ -334,7 +221,6 @@
                         </div>
                     </div>
                     <h2 className="font-bold text-2xl flex gap-3 items-center text-slate-800"><Settings className="text-orange-500" size={28}/> Gestione Menu</h2>
-                    
                     <div className="grid md:grid-cols-12 gap-6">
                         <div className="md:col-span-4 space-y-4">
                             <div className="bg-white p-4 rounded-2xl border shadow-sm">
@@ -350,7 +236,7 @@
                             <div className="p-4 border-b bg-slate-50 font-bold text-slate-700">PRODOTTI: <span className="text-orange-600 uppercase">{inventory[selCat]?.name}</span></div>
                             <div className="p-4 border-b flex gap-2"><input className="flex-1 p-3 border rounded-xl" placeholder="Nuovo prodotto..." value={newProd} onChange={e => setNewProd(e.target.value)} onKeyDown={e => e.key === 'Enter' && addProduct()}/><button onClick={addProduct} className="bg-blue-600 text-white px-6 rounded-xl font-bold"><Plus/></button></div>
                             <div className="p-4 flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-3 content-start">
-                                {currentProducts.map((p, idx) => (
+                                {inventory[selCat]?.products.map((p, idx) => (
                                     <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border hover:border-blue-300"><span className="font-medium">{p}</span><button onClick={() => deleteProduct(p)} className="text-slate-300 hover:text-red-500"><X/></button></div>
                                 ))}
                             </div>
@@ -378,13 +264,8 @@
             const printer = useRef(null);
 
             useEffect(() => {
-                window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); window.deferredPrompt = e; });
                 try {
-                    const i = localStorage.getItem('haccp_inv_v5'); 
-                    if(i) {
-                        const p = JSON.parse(i);
-                        if(p && typeof p === 'object') setInv(p);
-                    }
+                    const i = localStorage.getItem('haccp_inv_v5'); if(i) { const p = JSON.parse(i); if(p && typeof p === 'object') setInv(p); }
                     const l = localStorage.getItem('haccp_logs_v5'); if(l) setLogs(JSON.parse(l));
                     genLot();
                 } catch(e) { console.error(e); }
@@ -396,9 +277,20 @@
             }, [inv, catId]);
 
             const saveInv = (n) => { setInv(n); localStorage.setItem('haccp_inv_v5', JSON.stringify(n)); };
-            const genLot = () => {
-                const c = parseInt(localStorage.getItem('prep_c')||'0')+1;
-                setPrepLot(`PREP-${String(c).padStart(4,'0')}`);
+            const genLot = () => { const c = parseInt(localStorage.getItem('prep_c')||'0')+1; setPrepLot(`PREP-${String(c).padStart(4,'0')}`); };
+
+            // CALLBACK DAI DATI AI
+            const handleAIData = (data) => {
+                if (data.lot) setLot(data.lot);
+                if (data.productName) {
+                    // Cerca se esiste un prodotto simile nel menu, altrimenti usa quello dell'AI
+                    // (Logica semplice per ora: se corrisponde esattamente)
+                    // Potresti aggiungere logica fuzzy qui
+                }
+                // Se vuoi salvare ingredienti rilevati dall'AI nelle note o altro
+                if (data.ingredients) {
+                    // Esempio: aggiungi alle note o popola la ricetta se vuota
+                }
             };
 
             const addLog = async (e) => {
@@ -409,22 +301,31 @@
                     fLot = prepLot; fIngs = ings;
                     localStorage.setItem('prep_c', (parseInt(localStorage.getItem('prep_c')||'0')+1).toString());
                     genLot();
-                } else {
-                    if(!lot) return alert("Inserisci Lotto");
-                }
+                } else { if(!lot) return alert("Inserisci Lotto"); }
                 
                 const newItem = { id: Date.now(), date: new Date().toISOString().split('T')[0], cat: inv[catId]?.name || 'Varie', prod: prod || 'Prodotto', lot: fLot, qty, type: mode, ingredients: fIngs };
-                const newLogs = [newItem, ...logs];
-                setLogs(newLogs);
-                localStorage.setItem('haccp_logs_v5', JSON.stringify(newLogs));
+                const nLogs = [newItem, ...logs];
+                setLogs(nLogs);
+                localStorage.setItem('haccp_logs_v5', JSON.stringify(nLogs));
                 
                 const cloudUrl = localStorage.getItem('haccp_cloud_url');
                 if (cloudUrl) {
+                    // Payload standard per il doPost
+                    const payload = {
+                        action: "save_log",
+                        date: newItem.date,
+                        cat: newItem.cat,
+                        prod: newItem.prod,
+                        lot: newItem.lot,
+                        qty: newItem.qty,
+                        ingredients: newItem.ingredients,
+                        type: newItem.type
+                    };
+                    
                     fetch(cloudUrl, {
                         method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(newItem)
+                        mode: 'no-cors', // Invia senza aspettare risposta (fire & forget)
+                        body: JSON.stringify(payload)
                     }).catch(console.error);
                 }
 
@@ -448,22 +349,13 @@
                 try {
                     let dev = printer.current;
                     let server;
-
-                    if (dev && dev.gatt.connected) {
-                        server = dev.gatt;
-                    } else {
+                    if (dev && dev.gatt.connected) { server = dev.gatt; } else {
                         // @ts-ignore
-                        dev = await navigator.bluetooth.requestDevice({
-                            filters: [{ name: '4B-2054L' }],
-                            optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
-                        });
+                        dev = await navigator.bluetooth.requestDevice({ filters: [{ name: '4B-2054L' }], optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] });
                         server = await dev.gatt.connect();
                         printer.current = dev;
-                        dev.addEventListener('gattserverdisconnected', () => { 
-                            printer.current = null; 
-                        });
+                        dev.addEventListener('gattserverdisconnected', () => { printer.current = null; });
                     }
-
                     const svc = await server.getPrimaryServices();
                     // @ts-ignore
                     const char = (await svc[0].getCharacteristics()).find(c => c.properties.write || c.properties.writeWithoutResponse);
@@ -472,10 +364,8 @@
                     const enc = new TextEncoder();
                     let cmds = `SIZE 60 mm,40 mm\nCLS\nBOX 10,10,470,310,3\n`;
                     let y = 30;
-
                     const prodLines = wrapText(item.prod, 18);
                     prodLines.forEach(l => { cmds += `TEXT 240,${y},"3",0,1,1,2,"${l}"\n`; y+=35; });
-                    
                     cmds += `TEXT 240,${y},"2",0,1,1,2,"(${item.cat})"\n`; y+=30;
                     cmds += `BAR 10,${y},460,2\n`; y+=10;
                     cmds += `TEXT 30,${y},"2",0,1,1,"L: ${item.lot}"\n`;
@@ -486,22 +376,16 @@
                         item.ingredients.forEach((ing) => {
                             const lineStr = `- ${ing.name} [${ing.lot}]`;
                             const iLines = wrapText(lineStr, 40);
-                            iLines.forEach(l => {
-                                if(y < 265) { cmds += `TEXT 20,${y},"1",0,1,1,"${l}"\n`; y+=20; }
-                            });
+                            iLines.forEach(l => { if(y < 265) { cmds += `TEXT 20,${y},"1",0,1,1,"${l}"\n`; y+=20; } });
                         });
                     }
-
                     cmds += `BAR 10,270,460,2\nTEXT 30,285,"2",0,1,1,"${item.date}"\nTEXT 300,285,"2",0,1,1,"Scad: +3gg"\nPRINT 1\nEND`;
-                    
                     const data = enc.encode(cmds);
                     for(let i=0; i<data.length; i+=100) await char.writeValue(data.slice(i, i+100));
-
-                } catch(e) { 
-                    alert("Stampa BT fallita. Uso browser.");
-                    window.print(); 
-                }
+                } catch(e) { alert("Stampa BT fallita. Uso browser."); window.print(); }
             };
+
+            const addIng = () => { if(!ingName||!ingQty) return alert("Dati mancanti"); setIngs([...ings, {name:ingName, lot:ingLot||'N/A', qty:ingQty}]); setIngName(''); setIngLot(''); setIngQty(''); };
 
             return (
                 <div className="min-h-screen bg-slate-50 flex flex-col pb-safe">
@@ -525,25 +409,25 @@
                                         <button onClick={()=>setMode('recipe')} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${mode==='recipe'?'bg-white shadow text-indigo-600':'text-slate-500'}`}>RICETTA</button>
                                     </div>
                                     <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-wrap gap-2">
-                                        {Object.values(inv).map(c => <button key={c.id} onClick={()=>{setCatId(c.id); if(c.products.length) setProd(c.products[0]); else setProd('')}} className={`px-4 py-2 rounded-lg font-bold text-sm border transition-all ${catId===c.id?'bg-orange-500 text-white':'bg-slate-50 border-slate-200'}`}>{c.name}</button>)}
+                                        {Object.values(inv).map(c => <button key={c.id} onClick={()=>{setCatId(c.id); if(c.products && c.products.length) setProd(c.products[0]); else setProd('')}} className={`px-4 py-2 rounded-lg font-bold text-sm border transition-all ${catId===c.id?'bg-orange-500 text-white':'bg-slate-50 border-slate-200'}`}>{c.name}</button>)}
                                     </div>
                                     <div className="bg-white p-4 rounded-2xl border shadow-sm">
-                                        <select className="w-full p-4 bg-slate-50 border-2 rounded-xl font-bold text-lg outline-none" value={prod} onChange={e=>setProd(e.target.value)}>{inv[catId]?.products.map(p=><option key={p} value={p}>{p}</option>)}</select>
+                                        <select className="w-full p-4 bg-slate-50 border-2 rounded-xl font-bold text-lg outline-none" value={prod} onChange={e=>setProd(e.target.value)}>{(inv[catId]?.products || []).map(p=><option key={p} value={p}>{p}</option>)}</select>
                                     </div>
                                 </div>
                                 <div className="md:col-span-7 bg-white p-6 rounded-2xl border shadow-sm">
                                     <form onSubmit={addLog} className="space-y-6">
                                         {mode==='single' ? (
-                                            <div><label className="text-xs font-bold text-slate-400 mb-1 block">LOTTO ORIGINE</label><SmartLotInput label="" value={lot} onChange={setLot}/></div>
+                                            <div><label className="text-xs font-bold text-slate-400 mb-1 block">LOTTO ORIGINE</label><AIScannerInput value={lot} onChange={setLot} onDataFound={handleAIData}/></div>
                                         ) : (
                                             <div className="space-y-4">
                                                 <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex justify-between items-center"><div><div className="text-[10px] font-bold text-indigo-400">LOTTO INTERNO</div><div className="text-2xl font-mono font-bold text-indigo-700">{prepLot}</div></div><ChefHat className="text-indigo-300" size={32}/></div>
                                                 <div className="space-y-2">{ings.map((ing, i) => <div key={i} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg text-sm border"><span className="font-bold">{ing.name} ({ing.qty})</span><span className="font-mono text-xs">{ing.lot}</span></div>)}</div>
-                                                <div className="p-4 bg-slate-50 rounded-xl border space-y-3"><select className="w-full p-3 border rounded-lg bg-white" value={newIngName} onChange={e=>setNewIngName(e.target.value)}><option value="">Seleziona...</option>{Object.values(inv).map(c=><optgroup key={c.id} label={c.name}>{c.products.map(p=><option key={p} value={p}>{p}</option>)}</optgroup>)}</select><div className="flex gap-2"><input className="w-24 p-3 border rounded-lg" placeholder="Q.tà" value={newIngQty} onChange={e=>setNewIngQty(e.target.value)}/><div className="flex-1"><SmartLotInput label="" value={newIngLot} onChange={setNewIngLot}/></div></div><button type="button" onClick={addIngredient} className="w-full py-3 bg-slate-800 text-white rounded-lg font-bold text-sm">+ AGGIUNGI</button></div>
+                                                <div className="p-4 bg-slate-50 rounded-xl border space-y-3"><select className="w-full p-3 border rounded-lg bg-white" value={newIngName} onChange={e=>setIngName(e.target.value)}><option value="">Seleziona...</option>{Object.values(inv).map(c=><optgroup key={c.id} label={c.name}>{(c.products||[]).map(p=><option key={p} value={p}>{p}</option>)}</optgroup>)}</select><div className="flex gap-2"><input className="w-24 p-3 border rounded-lg" placeholder="Q.tà" value={ingQty} onChange={e=>setIngQty(e.target.value)}/><div className="flex-1"><AIScannerInput value={ingLot} onChange={setIngLot} /></div></div><button type="button" onClick={addIng} className="w-full py-3 bg-slate-800 text-white rounded-lg font-bold text-sm">+ AGGIUNGI</button></div>
                                             </div>
                                         )}
                                         <div><label className="text-xs font-bold text-slate-400 ml-1 mb-1 block">QUANTITÀ</label><input value={qty} onChange={e=>setQty(e.target.value)} className="w-full p-4 border-2 rounded-xl font-bold text-lg" placeholder="Es. 5 Kg"/></div>
-                                        <Button type="submit" fullWidth className="py-5 text-xl shadow-xl">STAMPA ETICHETTA</Button>
+                                        <button type="submit" className="w-full py-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl font-bold text-xl shadow-xl flex justify-center gap-3 items-center">STAMPA <Printer/></button>
                                     </form>
                                 </div>
                             </div>
