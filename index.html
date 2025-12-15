@@ -2,62 +2,54 @@
 <html lang="it">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#ffffff">
-    <title>HACCP Pro 18.1</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover">
+    <title>HACCP Pro 17.0</title>
     
     <!-- STILI -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- LIBRERIE CORE (Caricamento Sicuro) -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <style>
+        body { font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        #scanner-overlay { position: fixed; inset: 0; z-index: 9999; background: black; display: flex; flex-direction: column; height: 100dvh; }
+        #reader { width: 100%; height: 100%; background: black; position: relative; }
+        #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+        .controls { position: absolute; bottom: 0; width: 100%; background: rgba(15, 23, 42, 0.95); padding: 30px; display: flex; justify-content: center; z-index: 50; }
+        .scan-region { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); width: 80%; aspect-ratio: 3/1; border: 2px solid #f97316; border-radius: 12px; pointer-events: none; z-index: 10; box-shadow: 0 0 0 9999px rgba(0,0,0,0.7); }
+    </style>
+
+    <!-- LIBRERIE GLOBALI -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- ICONE E UTILS -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <script src='https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js'></script>
-
-    <style>
-        body { font-family: sans-serif; -webkit-tap-highlight-color: transparent; padding-bottom: env(safe-area-inset-bottom); }
-        /* Scanner UI */
-        #scanner-overlay { position: fixed; inset: 0; z-index: 9999; background: black; display: flex; flex-direction: column; height: 100dvh; }
-        #reader { width: 100%; height: 100%; position: relative; }
-        #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
-        .scan-region { 
-            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); 
-            width: 80%; aspect-ratio: 3/1; border: 2px solid #f97316; border-radius: 12px; 
-            box-shadow: 0 0 0 9999px rgba(0,0,0,0.7); pointer-events: none; z-index: 10; 
-        }
-        .controls { position: absolute; bottom: 0; width: 100%; background: rgba(15, 23, 42, 0.95); padding: 20px; z-index: 20; display: flex; justify-content: center; }
-    </style>
+    <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
 </head>
-<body class="bg-slate-50 text-slate-900 select-none">
-    <div id="root"></div>
+<body class="bg-gray-50 text-slate-900 select-none">
+    <div id="root">
+        <div class="h-screen flex items-center justify-center text-gray-400">Caricamento...</div>
+    </div>
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
-        // Mappatura Icone Lucide
-        const { Layers, Plus, History, Settings, Printer, Trash2, X, Camera, ScanLine, ChefHat, Package, Cloud, Download, Upload, Smartphone } = lucide;
+        const { Camera, Printer, Trash2, Settings, Plus, History, X, ScanLine, Zap, Check, Cloud, Download, Upload, Layers, Smartphone } = lucide;
 
         // --- DATI DEFAULT ---
-        const DEFAULT_DATA = {
+        const DEFAULT_INV = {
             impasti: { id: 'impasti', name: 'Impasti', products: ['Impasto Pizza', 'Pane'] },
             cucina: { id: 'cucina', name: 'Cucina', products: ['Sugo', 'Verdure'] }
         };
 
-        // --- SCANNER COMPONENT ---
+        // --- SCANNER ---
         const Scanner = ({ onResult, onClose }) => {
             const [status, setStatus] = useState('Avvio...');
             
             useEffect(() => {
                 let html5QrCode;
-                const start = async () => {
+                setTimeout(async () => {
                     try {
                         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                        stream.getTracks().forEach(t => t.stop()); // Stop stream, check perm only
+                        stream.getTracks().forEach(t => t.stop()); 
 
                         html5QrCode = new Html5Qrcode("reader");
                         await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 100 } }, 
@@ -66,8 +58,7 @@
                         );
                         setStatus("");
                     } catch (e) { setStatus("Errore Camera: " + e); }
-                };
-                setTimeout(start, 300);
+                }, 500);
                 return () => { if(html5QrCode?.isScanning) html5QrCode.stop().catch(()=>{}); };
             }, []);
 
@@ -75,15 +66,12 @@
                 const vid = document.querySelector("#reader video");
                 if(!vid) return;
                 setStatus("OCR...");
-                
                 try {
                     const cvs = document.createElement('canvas');
                     cvs.width = vid.videoWidth; cvs.height = vid.videoHeight;
-                    cvs.getContext('2d').drawImage(vid,0,0);
-                    
+                    cvs.getContext('2d').drawImage(vid, 0, 0);
                     const res = await Tesseract.recognize(cvs.toDataURL('image/jpeg'), 'eng');
                     const txt = res.data.text.replace(/[^A-Z0-9-]/g, '').trim();
-                    
                     if(txt.length > 2) onResult(txt);
                     else { setStatus("Riprova"); setTimeout(()=>setStatus(''), 1000); }
                 } catch(e) { setStatus("Errore OCR"); }
@@ -91,7 +79,7 @@
 
             return (
                 <div id="scanner-overlay">
-                    <div className="absolute top-0 w-full flex justify-between p-4 text-white bg-black/50 z-50">
+                    <div className="absolute top-0 w-full p-4 flex justify-between text-white bg-black/50 z-50">
                         <span className="font-bold flex gap-2"><ScanLine/> SCANNER</span>
                         <button onClick={onClose}><X/></button>
                     </div>
@@ -112,7 +100,7 @@
         const App = () => {
             const [view, setView] = useState('home');
             const [mode, setMode] = useState('single');
-            const [inv, setInv] = useState(DEFAULT_DATA);
+            const [inv, setInv] = useState(DEFAULT_INV);
             const [logs, setLogs] = useState([]);
             
             // Form
@@ -122,34 +110,12 @@
             const [qty, setQty] = useState('');
             const [scan, setScan] = useState(false);
             
-            // Recipe
-            const [prepLot, setPrepLot] = useState('');
-            const [ings, setIngs] = useState([]);
-            const [ingName, setIngName] = useState('');
-            const [ingLot, setIngLot] = useState('');
-            const [ingQty, setIngQty] = useState('');
-            const [scanTarget, setScanTarget] = useState('');
-
-            // Settings
-            const [newCat, setNewCat] = useState('');
-            const [newProd, setNewProd] = useState('');
-            const [selCat, setSelCat] = useState('');
-            const [cloudUrl, setCloudUrl] = useState('');
-
-            // Printer
-            const printer = useRef(null);
-
+            // Init
             useEffect(() => {
-                // Load Icons
                 lucide.createIcons();
-                
-                // Load Data
                 const i = localStorage.getItem('h_inv'); if(i) setInv(JSON.parse(i));
                 const l = localStorage.getItem('h_logs'); if(l) setLogs(JSON.parse(l));
-                const u = localStorage.getItem('h_url'); if(u) setCloudUrl(u);
-                
-                genLot();
-            }, [view]); // Reload icons on view change
+            }, [view]);
 
             useEffect(() => {
                  if (inv[catId]) { if (inv[catId].products.length > 0) setProd(inv[catId].products[0]); else setProd(''); } 
@@ -157,136 +123,72 @@
             }, [inv, catId]);
 
             const saveInv = (n) => { setInv(n); localStorage.setItem('h_inv', JSON.stringify(n)); };
-            const genLot = () => {
-                const c = parseInt(localStorage.getItem('prep_c')||'0')+1;
-                setPrepLot(`PREP-${String(c).padStart(4,'0')}`);
-            };
-
-            const triggerScan = (t) => { setScanTarget(t); setScan(true); };
-            const onScan = (t) => { if(scanTarget==='main') setLot(t); else setIngLot(t); setScan(false); };
-
-            const addLog = async (e) => {
-                e.preventDefault();
-                let fLot = lot; let fIngs = null;
-                if(mode==='recipe') {
-                    if(!ings.length) return alert('Ingredienti?');
-                    fLot = prepLot; fIngs = ings;
-                    localStorage.setItem('prep_c', (parseInt(localStorage.getItem('prep_c')||'0')+1).toString());
-                    genLot();
-                } else if(!lot) return alert('Lotto?');
-
-                const item = { id: Date.now(), date: new Date().toLocaleDateString(), cat: inv[catId]?.name, prod: prod||'?', lot: fLot, qty, type: mode, ingredients: fIngs };
+            const addLog = () => {
+                const item = { id: Date.now(), prod: prod||'?', lot, qty, date: new Date().toLocaleDateString() };
                 const nLogs = [item, ...logs];
                 setLogs(nLogs);
                 localStorage.setItem('h_logs', JSON.stringify(nLogs));
-
-                if(cloudUrl) fetch(cloudUrl, { method:'POST', mode:'no-cors', body:JSON.stringify(item) }).catch(()=>{});
-                
-                await print(item);
-                setLot(''); setQty(''); setIngs([]);
+                setLot(''); setQty('');
             };
+            const print = (l) => { alert("Stampa: " + l.prod); };
 
-            const print = async (item) => {
-                try {
-                    let dev = printer.current;
-                    if(!dev || !dev.gatt.connected) {
-                        dev = await navigator.bluetooth.requestDevice({ filters:[{name:'4B-2054L'}], optionalServices:['000018f0-0000-1000-8000-00805f9b34fb'] });
-                        await dev.gatt.connect();
-                        printer.current = dev;
-                    }
-                    const svc = await dev.gatt.getPrimaryServices();
-                    const char = (await svc[0].getCharacteristics()).find(c=>c.properties.write || c.properties.writeWithoutResponse);
-                    const enc = new TextEncoder();
-                    const cmds = `SIZE 60 mm,40 mm\nCLS\nTEXT 30,30,"3",0,1,1,"${item.prod}"\nTEXT 30,70,"2",0,1,1,"L: ${item.lot}"\nPRINT 1\nEND`;
-                    await char.writeValue(enc.encode(cmds));
-                } catch(e) { alert("Stampa BT fallita."); window.print(); }
-            };
+            // Menu Helpers (Semplificato per stabilità)
+            const [newCat, setNewCat] = useState('');
+            const [newProd, setNewProd] = useState('');
+            const addCat = () => { if(!newCat)return; const id=newCat.toLowerCase().replace(/\s/g,''); saveInv({...inv,[id]:{id,name:newCat,products:[]}}); setNewCat(''); };
+            const addPrd = () => { if(!newProd)return; const c=inv[catId]; saveInv({...inv,[catId]:{...c,products:[...c.products,newProd]}}); setNewProd(''); };
 
-            // Menu Helpers
-            const addCat = () => { if(!newCat) return; const id=newCat.toLowerCase().replace(/\s/g,''); saveInv({...inv, [id]: {id, name:newCat, products:[]} }); setNewCat(''); };
-            const addProd = () => { if(!newProd) return; const c=inv[selCat]; saveInv({...inv, [selCat]: {...c, products:[...c.products, newProd]}}); setNewProd(''); };
-            const delLog = (id) => { if(confirm('?')) { const n=logs.filter(x=>x.id!==id); setLogs(n); localStorage.setItem('h_logs', JSON.stringify(n)); }};
-            
-            // RENDER
             return (
-                <div className="min-h-screen pb-20 bg-slate-50">
-                    {scan && <Scanner onResult={onScan} onClose={()=>setScan(false)} />}
+                <div className="min-h-screen pb-20 bg-gray-50">
+                    {scan && <Scanner onResult={(t)=>{setLot(t); setScan(false);}} onClose={()=>setScan(false)} />}
                     
                     <div className="bg-white p-4 shadow flex justify-between items-center sticky top-0 z-30">
-                        <div className="font-bold text-lg flex gap-2"><Layers className="text-orange-500"/> HACCP Pro</div>
+                        <div className="font-bold text-lg flex gap-2 text-orange-600"><Layers/> HACCP Pro</div>
                         <div className="flex gap-2">
-                            <button onClick={()=>setView('home')} className={`p-2 rounded ${view==='home'?'bg-slate-100':''}`}><Plus/></button>
-                            <button onClick={()=>setView('history')} className={`p-2 rounded ${view==='history'?'bg-slate-100':''}`}><History/></button>
-                            <button onClick={()=>setView('menu')} className={`p-2 rounded ${view==='menu'?'bg-slate-100':''}`}><Settings/></button>
+                            <button onClick={()=>setView('home')} className="p-2 bg-gray-100 rounded"><Plus/></button>
+                            <button onClick={()=>setView('history')} className="p-2 bg-gray-100 rounded"><History/></button>
+                            <button onClick={()=>setView('menu')} className="p-2 bg-gray-100 rounded"><Settings/></button>
                         </div>
                     </div>
 
                     <main className="p-4 max-w-lg mx-auto">
-                        
-                        {/* HOME */}
                         {view === 'home' && (
                             <div className="space-y-4">
-                                <div className="flex bg-slate-200 p-1 rounded-xl">
-                                    <button onClick={()=>setMode('single')} className={`flex-1 py-2 rounded-lg font-bold text-xs ${mode==='single'?'bg-white shadow':''}`}>SINGOLO</button>
-                                    <button onClick={()=>setMode('recipe')} className={`flex-1 py-2 rounded-lg font-bold text-xs ${mode==='recipe'?'bg-white shadow':''}`}>RICETTA</button>
-                                </div>
                                 <div className="bg-white p-4 rounded-xl shadow flex flex-wrap gap-2">
-                                    {Object.values(inv).map(c => <button key={c.id} onClick={()=>{setCatId(c.id); if(c.products.length) setProd(c.products[0]); else setProd('')}} className={`px-3 py-1 rounded border text-sm font-bold ${catId===c.id?'bg-orange-500 text-white':'bg-white'}`}>{c.name}</button>)}
+                                    {Object.values(inv).map(c=><button key={c.id} onClick={()=>setCatId(c.id)} className={`px-3 py-1 border rounded text-sm font-bold ${catId===c.id?'bg-orange-500 text-white':'bg-white'}`}>{c.name}</button>)}
                                 </div>
                                 <div className="bg-white p-6 rounded-xl shadow space-y-4">
-                                    <select className="w-full p-3 border rounded-xl font-bold text-lg bg-white" value={prod} onChange={e=>setProd(e.target.value)}>{inv[catId]?.products.map(p=><option key={p} value={p}>{p}</option>)}</select>
-                                    
-                                    {mode==='single' ? (
-                                        <div className="flex gap-2">
-                                            <input value={lot} onChange={e=>setLot(e.target.value)} className="flex-1 p-3 border rounded-xl font-mono text-lg uppercase" placeholder="LOTTO..." />
-                                            <button onClick={()=>triggerScan('main')} className="p-3 bg-orange-100 text-orange-600 rounded-xl"><Camera/></button>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            <div className="bg-indigo-50 p-2 rounded flex justify-between text-sm font-bold text-indigo-700"><span>Lotto Interno:</span> <span>{prepLot}</span></div>
-                                            <div className="text-xs space-y-1">{ings.map((i,k)=><div key={k} className="flex justify-between border-b pb-1"><span>{i.name} ({i.qty})</span><span>{i.lot}</span></div>)}</div>
-                                            <div className="bg-slate-50 p-2 rounded space-y-2 border">
-                                                <select className="w-full p-2 border rounded bg-white text-sm" value={ingName} onChange={e=>setIngName(e.target.value)}><option value="">Ingrediente...</option>{Object.values(inv).map(c=><optgroup key={c.id} label={c.name}>{c.products.map(p=><option key={p} value={p}>{p}</option>)}</optgroup>)}</select>
-                                                <div className="flex gap-2"><input className="w-20 p-2 border rounded text-sm" placeholder="Q.tà" value={ingQty} onChange={e=>setIngQty(e.target.value)}/><div className="flex-1 flex gap-1"><input className="flex-1 p-2 border rounded text-sm" placeholder="Lotto" value={ingLot} onChange={e=>setIngLot(e.target.value)}/><button onClick={()=>triggerScan('ingredient')} className="p-2 bg-white border rounded"><Camera size={16}/></button></div></div>
-                                                <button onClick={()=>{if(ingName&&ingQty){setIngs([...ings,{name:ingName,lot:ingLot,qty:ingQty}]); setIngName(''); setIngLot(''); setIngQty('');}}} className="w-full py-2 bg-slate-800 text-white rounded text-xs font-bold">+ AGGIUNGI</button>
-                                            </div>
-                                        </div>
-                                    )}
-                                    <input value={qty} onChange={e=>setQty(e.target.value)} className="w-full p-3 border rounded-xl font-bold text-lg" placeholder="Quantità (es. 5 Kg)"/>
-                                    <button onClick={addLog} className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-lg shadow-xl">STAMPA</button>
+                                    <select className="w-full p-3 border rounded-xl font-bold text-lg" value={prod} onChange={e=>setProd(e.target.value)}>{inv[catId]?.products.map(p=><option key={p} value={p}>{p}</option>)}</select>
+                                    <div className="flex gap-2">
+                                        <input className="flex-1 p-3 border rounded-xl font-mono text-lg uppercase" value={lot} onChange={e=>setLot(e.target.value)} placeholder="LOTTO..." />
+                                        <button onClick={()=>setScan(true)} className="p-3 bg-orange-100 text-orange-600 rounded-xl"><Camera/></button>
+                                    </div>
+                                    <input className="w-full p-3 border rounded-xl font-bold text-lg" value={qty} onChange={e=>setQty(e.target.value)} placeholder="Quantità" />
+                                    <button onClick={addLog} className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg">SALVA</button>
                                 </div>
                             </div>
                         )}
 
-                        {/* HISTORY */}
                         {view === 'history' && (
-                            <div className="space-y-3">
+                            <div className="space-y-2">
                                 {logs.map(l => (
-                                    <div key={l.id} className="bg-white p-4 rounded-xl shadow border flex justify-between items-center">
-                                        <div><div className="font-bold">{l.prod}</div><div className="text-xs text-gray-500">{l.lot} • {l.qty}</div></div>
-                                        <div className="flex gap-2"><button onClick={()=>print(l)} className="p-2 bg-slate-100 rounded"><Printer/></button><button onClick={()=>delLog(l.id)} className="p-2 text-red-500"><Trash2/></button></div>
+                                    <div key={l.id} className="bg-white p-4 rounded-xl shadow flex justify-between items-center">
+                                        <div><div className="font-bold">{l.prod}</div><div className="text-sm text-gray-500">{l.lot} • {l.qty}</div></div>
+                                        <button onClick={()=>print(l)} className="p-2 bg-gray-100 rounded"><Printer/></button>
                                     </div>
                                 ))}
                             </div>
                         )}
 
-                        {/* MENU & SETTINGS */}
                         {view === 'menu' && (
-                            <div className="space-y-6">
-                                <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
-                                    <h3 className="font-bold text-blue-900 mb-2 flex gap-2"><Cloud size={16}/> Cloud Sync</h3>
-                                    <div className="flex gap-2"><input className="w-full p-2 border rounded text-xs" placeholder="URL Script..." value={cloudUrl} onChange={e=>setCloudUrl(e.target.value)}/><button onClick={()=>{localStorage.setItem('h_url', cloudUrl); alert('Ok');}} className="bg-blue-600 text-white px-3 rounded font-bold text-xs">OK</button></div>
+                            <div className="space-y-4">
+                                <div className="bg-white p-4 rounded-xl shadow">
+                                    <h3 className="font-bold mb-2">Nuova Categoria</h3>
+                                    <div className="flex gap-2"><input className="flex-1 border p-2 rounded" value={newCat} onChange={e=>setNewCat(e.target.value)}/><button onClick={addCat} className="bg-slate-900 text-white px-4 rounded font-bold">+</button></div>
                                 </div>
-                                <div className="bg-white p-4 rounded-xl border space-y-4">
-                                    <h3 className="font-bold">Gestione</h3>
-                                    <div className="flex gap-2"><input className="flex-1 border p-2 rounded text-sm" placeholder="Nuova Categoria" value={newCat} onChange={e=>setNewCat(e.target.value)}/><button onClick={addCat} className="bg-slate-900 text-white px-3 rounded font-bold">+</button></div>
-                                    <div className="flex flex-wrap gap-2">{Object.values(inv).map(c=><button key={c.id} onClick={()=>setSelCat(c.id)} className={`px-2 py-1 border rounded text-xs font-bold ${selCat===c.id?'bg-orange-100 border-orange-300':''}`}>{c.name}</button>)}</div>
-                                    {selCat && (
-                                        <div className="border-t pt-4">
-                                            <div className="flex gap-2 mb-2"><input className="flex-1 border p-2 rounded text-sm" placeholder="Nuovo Prodotto" value={newProd} onChange={e=>setNewProd(e.target.value)}/><button onClick={addProd} className="bg-blue-600 text-white px-3 rounded font-bold">+</button></div>
-                                            <div className="max-h-40 overflow-y-auto space-y-1">{inv[selCat].products.map(p=><div key={p} className="flex justify-between p-2 bg-slate-50 border rounded text-xs"><span>{p}</span><button onClick={()=>{if(confirm('?')){const c=inv[selCat]; saveInv({...inv,[selCat]:{...c,products:c.products.filter(x=>x!==p)}})}}} className="text-red-500">x</button></div>)}</div>
-                                        </div>
-                                    )}
+                                <div className="bg-white p-4 rounded-xl shadow">
+                                    <h3 className="font-bold mb-2">Nuovo Prodotto in: {inv[catId]?.name}</h3>
+                                    <div className="flex gap-2"><input className="flex-1 border p-2 rounded" value={newProd} onChange={e=>setNewProd(e.target.value)}/><button onClick={addPrd} className="bg-blue-600 text-white px-4 rounded font-bold">+</button></div>
                                 </div>
                             </div>
                         )}
