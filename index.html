@@ -54,7 +54,6 @@
                 let html5QrCode;
                 setTimeout(async () => {
                     try {
-                        // Check permessi
                         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
                         stream.getTracks().forEach(t => t.stop()); 
 
@@ -122,7 +121,8 @@
                 lucide.createIcons();
                 const i = localStorage.getItem('h_inv'); if(i) setInv(JSON.parse(i));
                 const l = localStorage.getItem('h_logs'); if(l) setLogs(JSON.parse(l));
-            }, [view]);
+                const u = localStorage.getItem('h_url'); if(u) setCloudUrl(u);
+            }, []);
 
             useEffect(() => {
                  if (inv[catId]) { if (inv[catId].products.length > 0) setProd(inv[catId].products[0]); else setProd(''); } 
@@ -139,7 +139,7 @@
             };
             const print = (l) => { alert("Stampa: " + l.prod); };
 
-            // Menu Helpers
+            // Menu Helpers (Semplificato per stabilità)
             const [newCat, setNewCat] = useState('');
             const [newProd, setNewProd] = useState('');
             const addCat = () => { if(!newCat)return; const id=newCat.toLowerCase().replace(/\s/g,''); saveInv({...inv,[id]:{id,name:newCat,products:[]}}); setNewCat(''); };
