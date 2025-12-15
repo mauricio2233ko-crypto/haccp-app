@@ -2,461 +2,152 @@
 <html lang="it">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <title>HACCP Pro 17</title>
     
-    <!-- PWA -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#ffffff">
-    <meta name="mobile-web-app-capable" content="yes">
-    <link rel="manifest" href='data:application/manifest+json;base64,eyJuYW1lIjoiSEFDQ1AgUHJvIiwiYHNob3J0X25hbWUiOiJIQUNDUCIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjZmZmZmZmIiwidGhlbWVfY29sb3IiOiIjZjk3MzE2IiwiaWNvbnMiOlt7InNyYyI6Imh0dHBzOi8vY2RuLWljb25zLXBuZy5mbGF0aWNvbi5jb20vNTEyLzEwNDYvMTA0Njg1Ny5wbmciLCJzaXplcyI6IjUxMng1MTIiLCJ0eXBlIjoiaW1hZ2UvcG5nIn1dfQ=='>
-    
-    <title>HACCP Pro AI</title>
-    
+    <!-- STILI -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; padding-bottom: env(safe-area-inset-bottom); }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        @media print { body * { visibility: hidden; } #print-area, #print-area * { visibility: visible; } #print-area { position: fixed; left: 0; top: 0; width: 60mm; height: 40mm; } }
-    </style>
-
-    <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@18.2.0",
-        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-        "lucide-react": "https://esm.sh/lucide-react@0.263.1"
-      }
-    }
-    </script>
+    
+    <!-- LIBRERIE -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
+        #scanner-overlay { position: fixed; inset: 0; z-index: 9999; background: black; display: flex; flex-direction: column; height: 100vh; }
+        #reader { width: 100%; height: 100%; background: black; }
+        #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+        .controls { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); padding: 20px; text-align: center; }
+    </style>
 </head>
-<body class="bg-slate-50 text-slate-900 select-none">
-    <div id="root">
-        <div class="flex h-screen items-center justify-center text-slate-400 gap-2">
-            <div class="animate-spin h-6 w-6 border-2 border-orange-500 border-t-transparent rounded-full"></div>
-        </div>
-    </div>
+<body class="bg-gray-100 text-gray-900">
+    <div id="root"></div>
 
-    <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useRef, Component } from 'react';
-        import ReactDOM from 'react-dom/client';
-        import { Layers, Plus, History, Settings, Printer, Trash2, X, Camera, ScanLine, Zap, ChefHat, Package, Check, Cloud, Link as LinkIcon, Download, Upload, FileSpreadsheet, Lock, AlertTriangle, MonitorDown, Loader2 } from 'lucide-react';
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const { Camera, Printer, Trash2, Settings, Plus, History, X, ScanLine, Smartphone } = lucide;
 
-        // --- ERROR BOUNDARY ---
-        class ErrorBoundary extends Component {
-            constructor(props) { super(props); this.state = { hasError: false }; }
-            static getDerivedStateFromError(error) { return { hasError: true }; }
-            render() {
-                if (this.state.hasError) return <div className="h-screen flex flex-col items-center justify-center p-6 text-center bg-red-50"><h1 className="text-xl font-bold text-red-900">Errore</h1><button onClick={() => { localStorage.clear(); window.location.reload(); }} className="mt-4 bg-red-600 text-white px-6 py-3 rounded-xl font-bold">RESET</button></div>;
-                return this.props.children;
-            }
-        }
-
-        const DEFAULT_DATA = {
-            impasti: { id: 'impasti', name: 'Impasti', products: ['Impasto Pizza', 'Pane', 'Integrale'] },
-            cucina: { id: 'cucina', name: 'Cucina', products: ['Sugo', 'Verdure', 'Patate'] },
-            frigo: { id: 'frigo', name: 'Frigo', products: ['Mozzarella', 'Prosciutto', 'Salame'] }
-        };
-
-        // --- COMPONENTE SCANNER AI NATIVO ---
-        const AIScannerInput = ({ value, onChange, onDataFound }) => {
-            const [loading, setLoading] = useState(false);
-            const fileInputRef = useRef(null);
-
-            const handleFile = async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                setLoading(true);
-                
-                // 1. Leggi file come Base64
-                const reader = new FileReader();
-                reader.onloadend = async () => {
-                    const base64 = reader.result.split(',')[1];
-                    const cloudUrl = localStorage.getItem('haccp_cloud_url');
-
-                    if (!cloudUrl) {
-                        alert("ERRORE: Configura il Link Cloud nelle Impostazioni per usare l'AI.");
-                        setLoading(false);
-                        return;
-                    }
-
-                    try {
-                        // 2. Invia a Google Script (Gemini)
-                        // Usa fetch con redirect 'follow' per gestire la risposta di Apps Script
-                        const formData = new FormData();
-                        // Google Apps Script doPost richiede un payload specifico
-                        // Poiché 'no-cors' non permette di leggere la risposta, usiamo un trucco:
-                        // La chiamata fetch standard a Apps Script spesso fallisce per CORS se non configurata perfettamente.
-                        // Tuttavia, Apps Script Web App pubblicato come "Anyone" supporta redirect.
-                        
-                        const payload = JSON.stringify({ action: "scan_image", image: base64 });
-                        
-                        // NOTA TECNICA: Per leggere la risposta JSON da Apps Script in un client statico,
-                        // lo script deve usare ContentService.createTextOutput e il client deve seguire i redirect.
-                        const response = await fetch(cloudUrl, {
-                            method: 'POST',
-                            body: payload
-                        });
-
-                        const data = await response.json();
-
-                        if (data.success) {
-                            // 3. Usa i dati trovati
-                            if (data.lot) onChange(data.lot);
-                            if (onDataFound) onDataFound(data);
-                        } else {
-                            alert("AI non ha trovato dati. Riprova.");
-                        }
-
-                    } catch (err) {
-                        console.error(err);
-                        alert("Errore AI: Assicurati che lo script Google sia pubblicato come 'Chiunque' (Anyone) e la chiave API sia valida. \n\n" + err.message);
-                    } finally {
-                        setLoading(false);
-                        // Reset input
-                        if(fileInputRef.current) fileInputRef.current.value = '';
-                    }
-                };
-                reader.readAsDataURL(file);
-            };
-
-            return (
-                <div className="flex gap-2">
-                    <input 
-                        className="flex-1 p-4 border-2 border-slate-200 rounded-xl font-mono font-bold text-lg uppercase outline-none focus:border-orange-500 transition-all" 
-                        placeholder="SCAN o SCRIVI..." 
-                        value={value} 
-                        onChange={e => onChange(e.target.value)} 
-                    />
-                    
-                    <input 
-                        type="file" 
-                        accept="image/*" 
-                        capture="environment" 
-                        ref={fileInputRef} 
-                        onChange={handleFile} 
-                        className="hidden" 
-                    />
-                    
-                    <button 
-                        type="button" 
-                        onClick={() => fileInputRef.current.click()} 
-                        className={`p-4 rounded-xl shadow-md transition-transform active:scale-95 border-2 ${loading ? 'bg-slate-100 border-slate-200' : 'bg-orange-50 border-orange-200 text-orange-600'}`}
-                        disabled={loading}
-                    >
-                        {loading ? <Loader2 className="animate-spin" size={24}/> : <Camera size={24}/>}
-                    </button>
-                </div>
-            );
-        };
-
-        // --- GESTIONE MENU ---
-        const MenuManager = ({ inventory, onUpdate }) => {
-            const [newCat, setNewCat] = useState('');
-            const [newProd, setNewProd] = useState('');
-            const [selCat, setSelCat] = useState('');
-            const [cloudUrl, setCloudUrl] = useState('');
-            const [savedUrl, setSavedUrl] = useState(''); 
-
+        // --- COMPONENTI ---
+        const Scanner = ({ onResult, onClose }) => {
+            const [status, setStatus] = useState('Avvio...');
+            
             useEffect(() => {
-                const keys = Object.keys(inventory);
-                if (keys.length > 0 && (!selCat || !inventory[selCat])) setSelCat(keys[0]);
-                const s = localStorage.getItem('haccp_cloud_url') || '';
-                setCloudUrl(s); setSavedUrl(s);
-            }, [inventory]);
-
-            const saveCloudUrl = () => { localStorage.setItem('haccp_cloud_url', cloudUrl.trim()); setSavedUrl(cloudUrl.trim()); alert("Salvato."); };
-            const isDirty = cloudUrl !== savedUrl;
-            const isConfigured = savedUrl.length > 0;
-
-            const addCategory = () => { if (!newCat.trim()) return; const id = newCat.toLowerCase().replace(/\s+/g, ''); if (inventory[id]) return alert("Esiste"); onUpdate({ ...inventory, [id]: { id, name: newCat, products: [] } }); setNewCat(''); setSelCat(id); };
-            const deleteCategory = (id) => { if (!confirm("Eliminare?")) return; const updated = { ...inventory }; delete updated[id]; onUpdate(updated); };
-            const addProduct = () => { if (!newProd.trim() || !selCat) return; const cat = inventory[selCat]; onUpdate({ ...inventory, [selCat]: { ...cat, products: [...cat.products, newProd.trim()] } }); setNewProd(''); };
-            const deleteProduct = (prodName) => { if (!confirm("Eliminare?")) return; const cat = inventory[selCat]; onUpdate({ ...inventory, [selCat]: { ...cat, products: cat.products.filter(p => p !== prodName) } }); };
-
-            const exportMenu = () => {
-                let csv = "Categoria,Prodotto\n";
-                Object.values(inventory).forEach(c => c.products.forEach(p => csv += `${c.name},${p}\n`));
-                const link = document.createElement("a");
-                link.href = "data:text/csv;charset=utf-8," + encodeURI(csv);
-                link.download = "menu_haccp.csv";
-                link.click();
-            };
-
-            const importMenu = (e) => {
-                const file = e.target.files[0];
-                if(!file) return;
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                    const lines = evt.target.result.split('\n');
-                    const newInv = { ...inventory };
-                    lines.forEach((l, i) => {
-                        if(i===0) return;
-                        const [c, p] = l.split(',');
-                        if(c && p) {
-                            const id = c.trim().toLowerCase().replace(/\s+/g, '');
-                            if(!newInv[id]) newInv[id] = { id, name: c.trim(), products: [] };
-                            if(!newInv[id].products.includes(p.trim())) newInv[id].products.push(p.trim());
-                        }
-                    });
-                    onUpdate(newInv);
-                    alert("Importato!");
-                };
-                reader.readAsText(file);
-            };
-
-            return (
-                <div className="p-4 md:p-8 space-y-8 pb-20 animate-in fade-in max-w-5xl mx-auto">
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div className={`border rounded-2xl p-6 shadow-sm ${isConfigured ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-100'}`}>
-                            <h3 className={`font-bold flex items-center gap-2 mb-2 ${isConfigured ? 'text-green-800' : 'text-blue-900'}`}><Cloud size={20}/> {isConfigured ? 'Cloud Attivo' : 'Cloud Sync (AI)'}</h3>
-                            <div className="flex gap-2"><div className="relative flex-1"><LinkIcon size={16} className="absolute left-3 top-3.5 text-gray-400"/><input className="w-full pl-9 pr-3 py-3 border border-white rounded-xl text-sm bg-white" placeholder="URL Script..." value={cloudUrl} onChange={e => setCloudUrl(e.target.value)}/></div><button onClick={saveCloudUrl} disabled={!isDirty && isConfigured} className={`px-4 rounded-xl font-bold text-white ${!isDirty && isConfigured ? 'bg-green-500 opacity-80' : 'bg-blue-600'}`}>{!isDirty && isConfigured ? 'OK' : 'SALVA'}</button></div>
-                        </div>
-                        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 shadow-sm">
-                            <h3 className="font-bold text-emerald-900 flex items-center gap-2 mb-4"><FileSpreadsheet size={20}/> Backup Menu</h3>
-                            <div className="flex gap-3"><button onClick={exportMenu} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow"><Download size={18}/> EXPORT</button><button onClick={()=>fileInputRef.current.click()} className="flex-1 bg-white text-emerald-700 border-2 border-emerald-600 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow"><Upload size={18}/> IMPORT</button><input type="file" ref={fileInputRef} onChange={importMenu} accept=".csv" className="hidden" /></div>
-                        </div>
-                    </div>
-                    <h2 className="font-bold text-2xl flex gap-3 items-center text-slate-800"><Settings className="text-orange-500" size={28}/> Gestione Menu</h2>
-                    <div className="grid md:grid-cols-12 gap-6">
-                        <div className="md:col-span-4 space-y-4">
-                            <div className="bg-white p-4 rounded-2xl border shadow-sm">
-                                <div className="flex gap-2"><input className="flex-1 p-3 border rounded-xl" placeholder="Nuova Categoria..." value={newCat} onChange={e => setNewCat(e.target.value)}/><button onClick={addCategory} className="bg-slate-900 text-white px-4 rounded-xl font-bold">OK</button></div>
-                            </div>
-                            <div className="bg-white rounded-2xl border shadow-sm overflow-hidden p-2 space-y-1">
-                                {Object.values(inventory).map(c => (
-                                    <button key={c.id} onClick={() => setSelCat(c.id)} className={`w-full text-left px-4 py-3 rounded-xl font-bold flex justify-between ${selCat === c.id ? 'bg-orange-50 text-orange-600' : 'text-slate-600'}`}>{c.name}{selCat === c.id && <span onClick={(e) => { e.stopPropagation(); deleteCategory(c.id); }} className="text-red-400"><Trash2 size={16}/></span>}</button>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="md:col-span-8 bg-white rounded-2xl border shadow-sm h-[500px] flex flex-col">
-                            <div className="p-4 border-b bg-slate-50 font-bold text-slate-700">PRODOTTI: <span className="text-orange-600 uppercase">{inventory[selCat]?.name}</span></div>
-                            <div className="p-4 border-b flex gap-2"><input className="flex-1 p-3 border rounded-xl" placeholder="Nuovo prodotto..." value={newProd} onChange={e => setNewProd(e.target.value)} onKeyDown={e => e.key === 'Enter' && addProduct()}/><button onClick={addProduct} className="bg-blue-600 text-white px-6 rounded-xl font-bold"><Plus/></button></div>
-                            <div className="p-4 flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-3 content-start">
-                                {inventory[selCat]?.products.map((p, idx) => (
-                                    <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border hover:border-blue-300"><span className="font-medium">{p}</span><button onClick={() => deleteProduct(p)} className="text-slate-300 hover:text-red-500"><X/></button></div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- APP ---
-        function App() {
-            const [view, setView] = useState('home');
-            const [mode, setMode] = useState('single');
-            const [inv, setInv] = useState(DEFAULT_DATA);
-            const [logs, setLogs] = useState([]);
-            const [catId, setCatId] = useState('impasti');
-            const [prod, setProd] = useState('');
-            const [lot, setLot] = useState('');
-            const [qty, setQty] = useState('');
-            const [prepLot, setPrepLot] = useState('');
-            const [ings, setIngs] = useState([]);
-            const [ingName, setIngName] = useState('');
-            const [ingLot, setIngLot] = useState('');
-            const [ingQty, setIngQty] = useState('');
-            const printer = useRef(null);
-
-            useEffect(() => {
-                try {
-                    const i = localStorage.getItem('haccp_inv_v5'); if(i) { const p = JSON.parse(i); if(p && typeof p === 'object') setInv(p); }
-                    const l = localStorage.getItem('haccp_logs_v5'); if(l) setLogs(JSON.parse(l));
-                    genLot();
-                } catch(e) { console.error(e); }
+                let scanner;
+                setTimeout(() => {
+                    scanner = new Html5Qrcode("reader");
+                    scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, 
+                        (txt) => { scanner.stop().then(() => onResult(txt)); }, 
+                        (err) => {}
+                    ).catch(err => setStatus("Errore Camera: " + err));
+                    setStatus("");
+                }, 500);
+                return () => { if(scanner && scanner.isScanning) scanner.stop(); };
             }, []);
 
-            useEffect(() => {
-                if (inv[catId]) { if (inv[catId].products.length > 0) setProd(inv[catId].products[0]); else setProd(''); } 
-                else if (Object.keys(inv).length > 0) setCatId(Object.keys(inv)[0]);
-            }, [inv, catId]);
-
-            const saveInv = (n) => { setInv(n); localStorage.setItem('haccp_inv_v5', JSON.stringify(n)); };
-            const genLot = () => { const c = parseInt(localStorage.getItem('prep_c')||'0')+1; setPrepLot(`PREP-${String(c).padStart(4,'0')}`); };
-
-            // CALLBACK DAI DATI AI
-            const handleAIData = (data) => {
-                if (data.lot) setLot(data.lot);
-                if (data.productName) {
-                    // Cerca se esiste un prodotto simile nel menu, altrimenti usa quello dell'AI
-                    // (Logica semplice per ora: se corrisponde esattamente)
-                    // Potresti aggiungere logica fuzzy qui
-                }
-                // Se vuoi salvare ingredienti rilevati dall'AI nelle note o altro
-                if (data.ingredients) {
-                    // Esempio: aggiungi alle note o popola la ricetta se vuota
-                }
-            };
-
-            const addLog = async (e) => {
-                e.preventDefault();
-                let fLot = lot; let fIngs = null;
-                if (mode === 'recipe') {
-                    if(ings.length === 0) return alert("Aggiungi ingredienti");
-                    fLot = prepLot; fIngs = ings;
-                    localStorage.setItem('prep_c', (parseInt(localStorage.getItem('prep_c')||'0')+1).toString());
-                    genLot();
-                } else { if(!lot) return alert("Inserisci Lotto"); }
+            const takePhoto = async () => {
+                const video = document.querySelector("#reader video");
+                if(!video) return;
+                setStatus("Analisi...");
+                const cvs = document.createElement('canvas');
+                cvs.width = video.videoWidth; cvs.height = video.videoHeight;
+                cvs.getContext('2d').drawImage(video, 0, 0);
                 
-                const newItem = { id: Date.now(), date: new Date().toISOString().split('T')[0], cat: inv[catId]?.name || 'Varie', prod: prod || 'Prodotto', lot: fLot, qty, type: mode, ingredients: fIngs };
-                const nLogs = [newItem, ...logs];
-                setLogs(nLogs);
-                localStorage.setItem('haccp_logs_v5', JSON.stringify(nLogs));
-                
-                const cloudUrl = localStorage.getItem('haccp_cloud_url');
-                if (cloudUrl) {
-                    // Payload standard per il doPost
-                    const payload = {
-                        action: "save_log",
-                        date: newItem.date,
-                        cat: newItem.cat,
-                        prod: newItem.prod,
-                        lot: newItem.lot,
-                        qty: newItem.qty,
-                        ingredients: newItem.ingredients,
-                        type: newItem.type
-                    };
-                    
-                    fetch(cloudUrl, {
-                        method: 'POST',
-                        mode: 'no-cors', // Invia senza aspettare risposta (fire & forget)
-                        body: JSON.stringify(payload)
-                    }).catch(console.error);
-                }
-
-                await printBT(newItem);
-                setLot(''); setQty(''); setIngs([]);
-            };
-
-            const wrapText = (text, maxChars) => {
-                if(!text) return [""];
-                const words = text.split(' ');
-                let lines = [], currentLine = words[0];
-                for (let i = 1; i < words.length; i++) {
-                    if (currentLine.length + 1 + words[i].length <= maxChars) currentLine += ' ' + words[i];
-                    else { lines.push(currentLine); currentLine = words[i]; }
-                }
-                lines.push(currentLine);
-                return lines;
-            };
-
-            const printBT = async (item) => {
                 try {
-                    let dev = printer.current;
-                    let server;
-                    if (dev && dev.gatt.connected) { server = dev.gatt; } else {
-                        // @ts-ignore
-                        dev = await navigator.bluetooth.requestDevice({ filters: [{ name: '4B-2054L' }], optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] });
-                        server = await dev.gatt.connect();
-                        printer.current = dev;
-                        dev.addEventListener('gattserverdisconnected', () => { printer.current = null; });
-                    }
-                    const svc = await server.getPrimaryServices();
-                    // @ts-ignore
-                    const char = (await svc[0].getCharacteristics()).find(c => c.properties.write || c.properties.writeWithoutResponse);
-                    if(!char) throw new Error("No Write");
-
-                    const enc = new TextEncoder();
-                    let cmds = `SIZE 60 mm,40 mm\nCLS\nBOX 10,10,470,310,3\n`;
-                    let y = 30;
-                    const prodLines = wrapText(item.prod, 18);
-                    prodLines.forEach(l => { cmds += `TEXT 240,${y},"3",0,1,1,2,"${l}"\n`; y+=35; });
-                    cmds += `TEXT 240,${y},"2",0,1,1,2,"(${item.cat})"\n`; y+=30;
-                    cmds += `BAR 10,${y},460,2\n`; y+=10;
-                    cmds += `TEXT 30,${y},"2",0,1,1,"L: ${item.lot}"\n`;
-                    cmds += `TEXT 300,${y},"2",0,1,1,"Q: ${item.qty}"\n`;
-                    y+=35;
-
-                    if (item.type === 'recipe' && item.ingredients) {
-                        item.ingredients.forEach((ing) => {
-                            const lineStr = `- ${ing.name} [${ing.lot}]`;
-                            const iLines = wrapText(lineStr, 40);
-                            iLines.forEach(l => { if(y < 265) { cmds += `TEXT 20,${y},"1",0,1,1,"${l}"\n`; y+=20; } });
-                        });
-                    }
-                    cmds += `BAR 10,270,460,2\nTEXT 30,285,"2",0,1,1,"${item.date}"\nTEXT 300,285,"2",0,1,1,"Scad: +3gg"\nPRINT 1\nEND`;
-                    const data = enc.encode(cmds);
-                    for(let i=0; i<data.length; i+=100) await char.writeValue(data.slice(i, i+100));
-                } catch(e) { alert("Stampa BT fallita. Uso browser."); window.print(); }
+                    const res = await Tesseract.recognize(cvs.toDataURL('image/jpeg'), 'eng');
+                    const txt = res.data.text.replace(/[^A-Z0-9-]/g, '').trim();
+                    if(txt.length > 3) onResult(txt);
+                    else { setStatus("Non trovato"); setTimeout(()=>setStatus(''), 1000); }
+                } catch(e) { setStatus("Errore OCR"); }
             };
-
-            const addIng = () => { if(!ingName||!ingQty) return alert("Dati mancanti"); setIngs([...ings, {name:ingName, lot:ingLot||'N/A', qty:ingQty}]); setIngName(''); setIngLot(''); setIngQty(''); };
 
             return (
-                <div className="min-h-screen bg-slate-50 flex flex-col pb-safe">
-                    {!window.isSecureContext && <div className="bg-amber-100 text-amber-800 p-2 text-center text-xs font-bold">HTTPS NECESSARIO</div>}
+                <div id="scanner-overlay">
+                    <div className="absolute top-0 w-full p-4 flex justify-between text-white bg-black/50 z-10">
+                        <span>SCANNER</span>
+                        <button onClick={onClose}>X</button>
+                    </div>
+                    <div id="reader"></div>
+                    {status && <div className="absolute inset-0 flex items-center justify-center text-white bg-black/80 z-20">{status}</div>}
+                    <div className="controls">
+                        <button onClick={takePhoto} className="bg-white text-black px-6 py-3 rounded-full font-bold">FOTO TESTO</button>
+                    </div>
+                </div>
+            );
+        };
 
-                    <header className="bg-white p-4 sticky top-0 z-30 border-b flex justify-between items-center shadow-sm">
-                        <div className="font-bold text-lg flex items-center gap-2"><Layers className="text-orange-500"/> HACCP Pro</div>
+        const App = () => {
+            const [view, setView] = useState('home');
+            const [prod, setProd] = useState('');
+            const [lot, setLot] = useState('');
+            const [scan, setScan] = useState(false);
+            const [logs, setLogs] = useState([]);
+
+            useEffect(() => {
+                const l = localStorage.getItem('logs');
+                if(l) setLogs(JSON.parse(l));
+                lucide.createIcons();
+            }, [view]);
+
+            const addLog = () => {
+                const item = { id: Date.now(), prod: prod || 'Prodotto', lot, date: new Date().toLocaleDateString() };
+                const newLogs = [item, ...logs];
+                setLogs(newLogs);
+                localStorage.setItem('logs', JSON.stringify(newLogs));
+                setLot('');
+                alert("Salvato!");
+            };
+
+            return (
+                <div className="min-h-screen pb-20">
+                    {scan && <Scanner onResult={(t) => { setLot(t); setScan(false); }} onClose={() => setScan(false)} />}
+                    
+                    <div className="bg-white p-4 shadow flex justify-between items-center sticky top-0 z-10">
+                        <h1 className="font-bold text-lg">HACCP Pro</h1>
                         <div className="flex gap-2">
-                            <button onClick={()=>setView('home')} className={`p-2 rounded-lg transition-all ${view==='home'?'bg-slate-100 text-slate-900':'text-slate-400'}`}><Plus size={24}/></button>
-                            <button onClick={()=>setView('history')} className={`p-2 rounded-lg transition-all ${view==='history'?'bg-slate-100 text-slate-900':'text-slate-400'}`}><History size={24}/></button>
-                            <button onClick={()=>setView('menu')} className={`p-2 rounded-lg transition-all ${view==='menu'?'bg-slate-100 text-slate-900':'text-slate-400'}`}><Settings size={24}/></button>
+                            <button onClick={()=>setView('home')} className="p-2 bg-gray-100 rounded">HOME</button>
+                            <button onClick={()=>setView('history')} className="p-2 bg-gray-100 rounded">STORICO</button>
                         </div>
-                    </header>
+                    </div>
 
-                    <main className="flex-1 p-4 overflow-y-auto">
-                        {view === 'home' && (
-                            <div className="max-w-5xl mx-auto animate-in fade-in grid md:grid-cols-12 gap-6">
-                                <div className="md:col-span-5 space-y-4">
-                                    <div className="flex bg-slate-200 p-1 rounded-2xl">
-                                        <button onClick={()=>setMode('single')} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${mode==='single'?'bg-white shadow text-slate-900':'text-slate-500'}`}>SINGOLO</button>
-                                        <button onClick={()=>setMode('recipe')} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${mode==='recipe'?'bg-white shadow text-indigo-600':'text-slate-500'}`}>RICETTA</button>
-                                    </div>
-                                    <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-wrap gap-2">
-                                        {Object.values(inv).map(c => <button key={c.id} onClick={()=>{setCatId(c.id); if(c.products && c.products.length) setProd(c.products[0]); else setProd('')}} className={`px-4 py-2 rounded-lg font-bold text-sm border transition-all ${catId===c.id?'bg-orange-500 text-white':'bg-slate-50 border-slate-200'}`}>{c.name}</button>)}
-                                    </div>
-                                    <div className="bg-white p-4 rounded-2xl border shadow-sm">
-                                        <select className="w-full p-4 bg-slate-50 border-2 rounded-xl font-bold text-lg outline-none" value={prod} onChange={e=>setProd(e.target.value)}>{(inv[catId]?.products || []).map(p=><option key={p} value={p}>{p}</option>)}</select>
+                    {view === 'home' && (
+                        <div className="p-4 max-w-md mx-auto space-y-4">
+                            <div className="bg-white p-6 rounded-xl shadow space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1">PRODOTTO</label>
+                                    <input className="w-full p-3 border rounded-lg text-lg font-bold" value={prod} onChange={e=>setProd(e.target.value)} placeholder="Nome..." />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1">LOTTO</label>
+                                    <div className="flex gap-2">
+                                        <input className="flex-1 p-3 border rounded-lg font-mono text-lg uppercase" value={lot} onChange={e=>setLot(e.target.value)} placeholder="..." />
+                                        <button onClick={()=>setScan(true)} className="bg-orange-100 text-orange-600 p-3 rounded-lg font-bold">SCAN</button>
                                     </div>
                                 </div>
-                                <div className="md:col-span-7 bg-white p-6 rounded-2xl border shadow-sm">
-                                    <form onSubmit={addLog} className="space-y-6">
-                                        {mode==='single' ? (
-                                            <div><label className="text-xs font-bold text-slate-400 mb-1 block">LOTTO ORIGINE</label><AIScannerInput value={lot} onChange={setLot} onDataFound={handleAIData}/></div>
-                                        ) : (
-                                            <div className="space-y-4">
-                                                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex justify-between items-center"><div><div className="text-[10px] font-bold text-indigo-400">LOTTO INTERNO</div><div className="text-2xl font-mono font-bold text-indigo-700">{prepLot}</div></div><ChefHat className="text-indigo-300" size={32}/></div>
-                                                <div className="space-y-2">{ings.map((ing, i) => <div key={i} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg text-sm border"><span className="font-bold">{ing.name} ({ing.qty})</span><span className="font-mono text-xs">{ing.lot}</span></div>)}</div>
-                                                <div className="p-4 bg-slate-50 rounded-xl border space-y-3"><select className="w-full p-3 border rounded-lg bg-white" value={newIngName} onChange={e=>setIngName(e.target.value)}><option value="">Seleziona...</option>{Object.values(inv).map(c=><optgroup key={c.id} label={c.name}>{(c.products||[]).map(p=><option key={p} value={p}>{p}</option>)}</optgroup>)}</select><div className="flex gap-2"><input className="w-24 p-3 border rounded-lg" placeholder="Q.tà" value={ingQty} onChange={e=>setIngQty(e.target.value)}/><div className="flex-1"><AIScannerInput value={ingLot} onChange={setIngLot} /></div></div><button type="button" onClick={addIng} className="w-full py-3 bg-slate-800 text-white rounded-lg font-bold text-sm">+ AGGIUNGI</button></div>
-                                            </div>
-                                        )}
-                                        <div><label className="text-xs font-bold text-slate-400 ml-1 mb-1 block">QUANTITÀ</label><input value={qty} onChange={e=>setQty(e.target.value)} className="w-full p-4 border-2 rounded-xl font-bold text-lg" placeholder="Es. 5 Kg"/></div>
-                                        <button type="submit" className="w-full py-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl font-bold text-xl shadow-xl flex justify-center gap-3 items-center">STAMPA <Printer/></button>
-                                    </form>
-                                </div>
+                                <button onClick={addLog} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold shadow-lg">SALVA</button>
                             </div>
                         </div>
                     )}
 
                     {view === 'history' && (
-                        <div className="max-w-2xl mx-auto space-y-4">
-                            <h2 className="font-bold text-2xl mb-6 text-slate-800">Storico</h2>
+                        <div className="p-4 max-w-md mx-auto space-y-2">
                             {logs.map(l => (
-                                <div key={l.id} className="bg-white p-5 rounded-2xl border shadow-sm flex flex-col gap-3">
-                                    <div className="flex justify-between items-start">
-                                        <div><span className="font-bold text-lg text-slate-800">{l.prod}</span><div className="text-sm text-slate-500">Lotto: {l.lot} • {l.qty}</div><div className="text-xs text-slate-400">{l.date}</div></div>
-                                        <div className="flex gap-2"><button onClick={()=>printBT(l)} className="p-3 bg-slate-50 rounded-xl hover:bg-slate-100"><Printer/></button><button onClick={()=>{if(confirm('?')) setLogs(logs.filter(x=>x.id!==l.id))}} className="p-3 text-red-500 rounded-xl hover:bg-red-50"><Trash2/></button></div>
-                                    </div>
-                                    {l.type === 'recipe' && l.ingredients && <div className="mt-2 p-3 bg-slate-50 rounded-xl border text-xs"><div className="font-bold mb-2">Ingredienti</div>{l.ingredients.map((ing, i) => <div key={i} className="flex justify-between border-b py-1"><span>{ing.name}</span><span className="font-mono">{ing.lot}</span></div>)}</div>}
+                                <div key={l.id} className="bg-white p-4 rounded-xl shadow flex justify-between">
+                                    <div><div className="font-bold">{l.prod}</div><div className="text-sm">{l.lot}</div></div>
+                                    <div className="text-xs text-gray-400">{l.date}</div>
                                 </div>
                             ))}
                         </div>
                     )}
-
-                    {view === 'menu' && <MenuManager inventory={inv} onUpdate={saveInv} />}
-                </main>
-            </div>
-        );
-    }
+                </div>
+            );
+        };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<ErrorBoundary><App /></ErrorBoundary>);
+        root.render(<App />);
     </script>
 </body>
 </html>
