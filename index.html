@@ -1,403 +1,69 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
-    <title>HACCP Pro Vanilla</title>
+// --- INCOLLA QUI LA TUA CHIAVE API DI GEMINI ---
+const GEMINI_API_KEY = "INCOLLA_QUI_LA_TUA_CHIAVE_AIza..."; 
+
+function doPost(e) {
+  var output = ContentService.createTextOutput();
+  
+  try {
+    var jsonString = e.postData.contents;
+    var request = JSON.parse(jsonString);
+
+    // 1. RICHIESTA SCANSIONE FOTO (AI)
+    if (request.action === "scan_image") {
+      var result = analyzeWithGemini(request.image);
+      output.setContent(JSON.stringify(result));
+      output.setMimeType(ContentService.MimeType.JSON);
+      return output;
+    }
+
+    // 2. RICHIESTA SALVATAGGIO DATI
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    if (sheet.getLastRow() === 0) sheet.appendRow(["Data", "Prod", "Cat", "Lotto", "Qta", "Note"]);
     
-    <!-- PWA -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#ffffff">
-    <link rel="manifest" href='data:application/manifest+json;base64,eyJuYW1lIjoiSEFDQ1AgUHJvIiwiYHNob3J0X25hbWUiOiJIQUNDUCIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjZmZmZmZmIiwidGhlbWVfY29sb3IiOiIjZjk3MzE2IiwiaWNvbnMiOlt7InNyYyI6Imh0dHBzOi8vY2RuLWljb25zLXBuZy5mbGF0aWNvbi5jb20vNTEyLzEwNDYvMTA0Njg1Ny5wbmciLCJzaXplcyI6IjUxMng1MTIiLCJ0eXBlIjoiaW1hZ2UvcG5nIn1dfQ=='>
+    sheet.appendRow([
+      new Date(),
+      request.date,
+      request.cat,
+      request.prod,
+      request.lot,
+      request.qty,
+      request.ingredients ? JSON.stringify(request.ingredients) : request.type
+    ]);
+    
+    output.setContent(JSON.stringify({ success: true }));
+    output.setMimeType(ContentService.MimeType.JSON);
+    return output;
 
-    <!-- STILI -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- ICONE -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- LIBRERIE UTILI -->
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <script src='https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js'></script>
+  } catch (err) {
+    output.setContent(JSON.stringify({ success: false, error: err.toString() }));
+    output.setMimeType(ContentService.MimeType.JSON);
+    return output;
+  }
+}
 
-    <style>
-        body { font-family: sans-serif; -webkit-tap-highlight-color: transparent; padding-bottom: env(safe-area-inset-bottom); }
-        .page { display: none; padding: 20px; padding-bottom: 80px; }
-        .page.active { display: block; }
-        
-        /* Scanner */
-        #scanner-overlay { position: fixed; inset: 0; z-index: 99; background: black; display: none; flex-direction: column; }
-        #reader { flex: 1; position: relative; overflow: hidden; }
-        #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
-        #scan-controls { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); padding: 20px; display: flex; justify-content: center; }
-        .scan-region { position: absolute; top: 40%; left: 10%; right: 10%; height: 150px; border: 2px solid orange; border-radius: 12px; pointer-events: none; z-index: 10; }
-    </style>
-</head>
-<body class="bg-gray-50 text-slate-900">
-
-    <!-- HEADER -->
-    <div class="bg-white p-4 sticky top-0 z-20 border-b flex justify-between items-center shadow-sm">
-        <div class="font-bold text-lg flex items-center gap-2 text-orange-600"><i data-lucide="layers"></i> HACCP Pro</div>
-        <div class="flex gap-2">
-            <button onclick="nav('home')" class="p-2 bg-gray-100 rounded hover:bg-gray-200"><i data-lucide="plus"></i></button>
-            <button onclick="nav('history')" class="p-2 bg-gray-100 rounded hover:bg-gray-200"><i data-lucide="history"></i></button>
-            <button onclick="nav('settings')" class="p-2 bg-gray-100 rounded hover:bg-gray-200"><i data-lucide="settings"></i></button>
-        </div>
-    </div>
-
-    <!-- HOME PAGE -->
-    <div id="home" class="page active max-w-lg mx-auto">
-        
-        <!-- Mode Switch -->
-        <div class="flex bg-gray-200 p-1 rounded-xl mb-4">
-            <button onclick="setMode('single')" id="btn-single" class="flex-1 py-2 rounded-lg font-bold text-xs bg-white shadow text-black transition">SINGOLO</button>
-            <button onclick="setMode('recipe')" id="btn-recipe" class="flex-1 py-2 rounded-lg font-bold text-xs text-gray-500 transition">RICETTA</button>
-        </div>
-
-        <!-- Categories -->
-        <div id="cat-list" class="flex flex-wrap gap-2 mb-4 bg-white p-4 rounded-xl shadow-sm border"></div>
-
-        <!-- Form -->
-        <div class="bg-white p-6 rounded-xl shadow-sm border space-y-4">
-            <select id="sel-prod" class="w-full p-3 border rounded-xl font-bold text-lg bg-white"></select>
-            
-            <!-- Single Mode -->
-            <div id="field-single">
-                <div class="flex gap-2">
-                    <input id="inp-lot" class="flex-1 p-3 border rounded-xl font-mono text-lg uppercase" placeholder="LOTTO..." />
-                    <button onclick="startScan('main')" class="p-3 bg-orange-100 text-orange-600 rounded-xl"><i data-lucide="camera"></i></button>
-                </div>
-            </div>
-
-            <!-- Recipe Mode -->
-            <div id="field-recipe" class="hidden space-y-4">
-                <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100 flex justify-between items-center text-indigo-700">
-                    <div><div class="text-[10px] font-bold">LOTTO INTERNO</div><div id="prep-lot" class="text-xl font-mono font-bold">...</div></div>
-                    <i data-lucide="chef-hat"></i>
-                </div>
-                <div id="ing-list" class="space-y-1 text-sm border-b pb-2"></div>
-                <div class="p-3 bg-gray-50 rounded border space-y-2">
-                    <select id="sel-ing" class="w-full p-2 border rounded text-sm bg-white"></select>
-                    <div class="flex gap-2">
-                        <input id="inp-ing-qty" class="w-20 p-2 border rounded text-sm" placeholder="Q.tà">
-                        <div class="flex-1 flex gap-1">
-                            <input id="inp-ing-lot" class="flex-1 p-2 border rounded text-sm" placeholder="Lotto">
-                            <button onclick="startScan('ing')" class="p-2 bg-white border rounded"><i data-lucide="camera" style="width:16px"></i></button>
-                        </div>
-                    </div>
-                    <button onclick="addIng()" class="w-full py-2 bg-slate-800 text-white rounded text-xs font-bold">+ AGGIUNGI</button>
-                </div>
-            </div>
-
-            <input id="inp-qty" class="w-full p-3 border rounded-xl font-bold text-lg" placeholder="Quantità (es. 5 Kg)" />
-            <button onclick="addLog()" class="w-full py-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg text-lg flex justify-center gap-2">STAMPA <i data-lucide="printer"></i></button>
-        </div>
-    </div>
-
-    <!-- HISTORY PAGE -->
-    <div id="history" class="page max-w-lg mx-auto">
-        <h2 class="font-bold text-xl mb-4">Storico</h2>
-        <div id="log-list" class="space-y-3"></div>
-    </div>
-
-    <!-- SETTINGS PAGE -->
-    <div id="settings" class="page max-w-lg mx-auto space-y-6">
-        <div class="bg-blue-50 p-4 rounded-xl border border-blue-200">
-            <h3 class="font-bold text-blue-900 mb-2 flex gap-2"><i data-lucide="cloud"></i> Cloud Sync</h3>
-            <div class="flex gap-2">
-                <input id="inp-cloud" class="w-full p-2 border rounded text-xs" placeholder="https://script.google..." />
-                <button onclick="saveCloud()" class="bg-blue-600 text-white px-3 rounded font-bold text-xs">OK</button>
-            </div>
-        </div>
-
-        <div class="bg-white p-4 rounded-xl shadow border space-y-4">
-            <h3 class="font-bold">Gestione Menu</h3>
-            <div class="flex gap-2">
-                <input id="new-cat" class="flex-1 border p-2 rounded" placeholder="Nuova Categoria" />
-                <button onclick="addCat()" class="bg-slate-900 text-white px-3 rounded font-bold">+</button>
-            </div>
-            <div id="set-cats" class="flex flex-wrap gap-2"></div>
-            
-            <div class="border-t pt-4">
-                <div class="flex gap-2 mb-2">
-                    <input id="new-prod" class="flex-1 border p-2 rounded" placeholder="Nuovo Prodotto" />
-                    <button onclick="addProd()" class="bg-blue-600 text-white px-3 rounded font-bold">+</button>
-                </div>
-                <div id="set-prods" class="max-h-40 overflow-y-auto space-y-1"></div>
-            </div>
-        </div>
-
-        <div class="text-center">
-            <button onclick="if(confirm('Reset?')){localStorage.clear();location.reload()}" class="text-red-500 text-xs underline">RESET TOTALE</button>
-        </div>
-    </div>
-
-    <!-- SCANNER OVERLAY -->
-    <div id="scanner-overlay">
-        <div class="absolute top-0 w-full p-4 flex justify-between text-white z-20">
-            <span class="font-bold flex gap-2"><i data-lucide="scan-line"></i> SCANNER</span>
-            <button onclick="closeScan()"><i data-lucide="x"></i></button>
-        </div>
-        <div id="reader">
-            <video id="scanner-video" autoplay playsinline></video>
-            <div class="scan-region"></div>
-            <div id="scan-status" class="absolute inset-0 flex items-center justify-center text-white font-bold bg-black/50" style="display:none">ANALISI...</div>
-        </div>
-        <div id="scan-controls">
-            <button onclick="takePhoto()" class="flex flex-col items-center text-white gap-2">
-                <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center text-black border-4 border-slate-700"><i data-lucide="camera" style="width:32px;height:32px"></i></div>
-                <span class="text-xs font-bold">SCATTA</span>
-            </button>
-        </div>
-        <canvas id="scan-canvas" style="display:none"></canvas>
-    </div>
-
-    <!-- LOGICA JS PURA (NO REACT) -->
-    <script>
-        // --- STATO ---
-        let DATA = {
-            inv: { impasti: { id: 'impasti', name: 'Impasti', products: ['Impasto Pizza'] } },
-            logs: [],
-            catId: 'impasti',
-            mode: 'single',
-            scanTarget: ''
-        };
-        let ingredients = [];
-
-        // --- INIT ---
-        window.onload = () => {
-            lucide.createIcons();
-            loadData();
-            render();
-        };
-
-        function loadData() {
-            try {
-                const i = localStorage.getItem('h_inv'); if(i) DATA.inv = JSON.parse(i);
-                const l = localStorage.getItem('h_logs'); if(l) DATA.logs = JSON.parse(l);
-                const u = localStorage.getItem('h_url'); if(u) document.getElementById('inp-cloud').value = u;
-                // Fix selezione
-                if(!DATA.inv[DATA.catId] && Object.keys(DATA.inv).length) DATA.catId = Object.keys(DATA.inv)[0];
-            } catch(e) { console.error(e); }
-            updatePrepLot();
-        }
-
-        // --- RENDERERS ---
-        function render() {
-            renderCats();
-            renderProds();
-            renderLogs();
-            renderSettingsUI();
-            lucide.createIcons();
-        }
-
-        function renderCats() {
-            const html = Object.values(DATA.inv).map(c => 
-                `<button onclick="setCat('${c.id}')" class="px-3 py-1 rounded-full border text-sm font-bold whitespace-nowrap ${DATA.catId===c.id?'bg-orange-500 text-white':'bg-white'}">${c.name}</button>`
-            ).join('');
-            document.getElementById('cat-list').innerHTML = html;
-        }
-
-        function renderProds() {
-            const prods = DATA.inv[DATA.catId]?.products || [];
-            const html = prods.map(p => `<option value="${p}">${p}</option>`).join('');
-            document.getElementById('sel-prod').innerHTML = html;
-            
-            // Per il menu ingredienti
-            let ingHtml = '<option value="">Seleziona...</option>';
-            Object.values(DATA.inv).forEach(c => {
-                ingHtml += `<optgroup label="${c.name}">${c.products.map(p=>`<option value="${p}">${p}</option>`).join('')}</optgroup>`;
-            });
-            document.getElementById('sel-ing').innerHTML = ingHtml;
-        }
-
-        function renderLogs() {
-            const html = DATA.logs.map(l => `
-                <div class="bg-white p-4 rounded-xl shadow border flex justify-between items-center">
-                    <div><div class="font-bold">${l.prod}</div><div class="text-xs text-gray-500">${l.lot} • ${l.qty}</div></div>
-                    <button onclick="printLog('${l.id}')" class="p-2 bg-gray-100 rounded"><i data-lucide="printer" style="width:16px"></i></button>
-                </div>
-            `).join('');
-            document.getElementById('log-list').innerHTML = html;
-        }
-
-        function renderSettingsUI() {
-            const cDiv = document.getElementById('set-cats');
-            cDiv.innerHTML = Object.values(DATA.inv).map(c => 
-                `<button onclick="setCat('${c.id}');nav('home')" class="px-2 py-1 border rounded text-xs bg-white">${c.name} <span onclick="event.stopPropagation();delCat('${c.id}')" class="text-red-500 font-bold ml-1">x</span></button>`
-            ).join('');
-
-            const pDiv = document.getElementById('set-prods');
-            const prods = DATA.inv[DATA.catId]?.products || [];
-            pDiv.innerHTML = prods.map(p => 
-                `<div class="flex justify-between p-2 border rounded bg-slate-50 text-sm"><span>${p}</span><button onclick="delProd('${p}')" class="text-red-500">x</button></div>`
-            ).join('');
-        }
-
-        function renderIngs() {
-            const div = document.getElementById('ing-list');
-            div.innerHTML = ingredients.map((ing, i) => `
-                <div class="flex justify-between border-b pb-1">
-                    <span>${ing.name} (${ing.qty})</span><span class="font-mono">${ing.lot}</span>
-                </div>
-            `).join('');
-        }
-
-        // --- ACTIONS ---
-        window.nav = (p) => {
-            document.querySelectorAll('.page').forEach(e => e.classList.remove('active'));
-            document.getElementById(p).classList.add('active');
-            if(p==='settings') renderSettingsUI();
-        };
-
-        window.setCat = (id) => { DATA.catId = id; render(); };
-
-        window.setMode = (m) => {
-            DATA.mode = m;
-            document.getElementById('btn-single').className = m==='single' ? 'flex-1 py-2 rounded-lg font-bold text-xs bg-white shadow text-black' : 'flex-1 py-2 rounded-lg font-bold text-xs text-gray-500';
-            document.getElementById('btn-recipe').className = m==='recipe' ? 'flex-1 py-2 rounded-lg font-bold text-xs bg-white shadow text-indigo-600' : 'flex-1 py-2 rounded-lg font-bold text-xs text-gray-500';
-            document.getElementById('field-single').style.display = m==='single' ? 'block' : 'none';
-            document.getElementById('field-recipe').style.display = m==='recipe' ? 'block' : 'none';
-        };
-
-        window.addIng = () => {
-            const name = document.getElementById('sel-ing').value;
-            const qty = document.getElementById('inp-ing-qty').value;
-            const lot = document.getElementById('inp-ing-lot').value;
-            if(!name || !qty) return alert("Dati mancanti");
-            ingredients.push({name, lot:lot||'N/A', qty});
-            renderIngs();
-            document.getElementById('inp-ing-qty').value='';
-            document.getElementById('inp-ing-lot').value='';
-        };
-
-        window.saveLog = async () => {
-            const prod = document.getElementById('sel-prod').value;
-            const qty = document.getElementById('inp-qty').value;
-            let lot = document.getElementById('inp-lot').value;
-            let finalIngs = null;
-
-            if(DATA.mode === 'recipe') {
-                if(!ingredients.length) return alert("Ingredienti?");
-                lot = document.getElementById('prep-lot').innerText;
-                finalIngs = ingredients;
-                // Increment prep
-                const c = parseInt(localStorage.getItem('prep_c')||'0')+1;
-                localStorage.setItem('prep_c', c);
-                updatePrepLot();
-            } else if(!lot) return alert("Lotto?");
-
-            const item = { id: Date.now(), date: new Date().toLocaleDateString(), cat: DATA.inv[DATA.catId].name, prod, lot, qty, type: DATA.mode, ingredients: finalIngs };
-            DATA.logs.unshift(item);
-            localStorage.setItem('h_logs', JSON.stringify(DATA.logs));
-
-            // Cloud
-            const url = document.getElementById('inp-cloud').value;
-            if(url) fetch(url, { method:'POST', mode:'no-cors', body:JSON.stringify(item) }).catch(()=>{});
-
-            // Print
-            await printBT(item);
-
-            // Reset
-            document.getElementById('inp-lot').value = '';
-            document.getElementById('inp-qty').value = '';
-            ingredients = [];
-            renderLogs();
-            renderIngs();
-        };
-
-        // --- SCANNER LOGIC ---
-        window.startScan = (t) => {
-            DATA.scanTarget = t;
-            document.getElementById('scanner-overlay').style.display = 'flex';
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-                .then(stream => { document.getElementById('scanner-video').srcObject = stream; })
-                .catch(e => alert("Errore Camera: " + e));
-        };
-
-        window.closeScan = () => {
-            document.getElementById('scanner-overlay').style.display = 'none';
-            const v = document.getElementById('scanner-video');
-            if(v.srcObject) v.srcObject.getTracks().forEach(t=>t.stop());
-        };
-
-        window.takePhoto = async () => {
-            const vid = document.getElementById('scanner-video');
-            const cvs = document.getElementById('scan-canvas');
-            const ctx = cvs.getContext('2d');
-            
-            document.getElementById('scan-status').style.display = 'flex';
-
-            cvs.width = vid.videoWidth; cvs.height = vid.videoHeight;
-            ctx.drawImage(vid, 0, 0);
-            
-            // Crop center
-            const w = cvs.width, h = cvs.height;
-            const cw = w*0.8, ch = h*0.25;
-            const cropCvs = document.createElement('canvas');
-            cropCvs.width = cw; cropCvs.height = ch;
-            cropCvs.getContext('2d').drawImage(cvs, (w-cw)/2, (h-ch)/2, cw, ch, 0, 0, cw, ch);
-
-            try {
-                const res = await Tesseract.recognize(cropCvs.toDataURL('image/jpeg'), 'eng');
-                const txt = res.data.text.replace(/[^A-Z0-9-]/g, '').trim();
-                
-                // Estrazione intelligente
-                let found = txt;
-                const match = txt.match(/(?:L\.|L:|LOT)[.\s]*([A-Z0-9]+)/i);
-                if(match) found = match[1];
-
-                if(found.length > 2) {
-                    if(DATA.scanTarget==='main') document.getElementById('inp-lot').value = found;
-                    else document.getElementById('inp-ing-lot').value = found;
-                    closeScan();
-                } else alert("Riprova");
-            } catch(e) { alert("Errore OCR"); }
-            
-            document.getElementById('scan-status').style.display = 'none';
-        };
-
-        // --- UTILS ---
-        function updatePrepLot() {
-            const c = parseInt(localStorage.getItem('prep_c')||'0')+1;
-            document.getElementById('prep-lot').innerText = `PREP-${String(c).padStart(4,'0')}`;
-        }
-
-        window.saveCloud = () => { localStorage.setItem('h_url', document.getElementById('inp-cloud').value); alert('Salva OK'); };
-        
-        window.addCat = () => { const v=document.getElementById('new-cat').value; if(!v)return; const id=v.toLowerCase().replace(/\s/g,''); DATA.inv[id]={id,name:v,products:[]}; saveAndRefresh(); document.getElementById('new-cat').value=''; };
-        window.addProd = () => { const v=document.getElementById('new-prod').value; if(!v)return; DATA.inv[DATA.catId].products.push(v); saveAndRefresh(); document.getElementById('new-prod').value=''; };
-        window.delCat = (id) => { if(confirm('?')){ delete DATA.inv[id]; if(DATA.catId===id) DATA.catId=Object.keys(DATA.inv)[0]||''; saveAndRefresh(); }};
-        window.delProd = (p) => { if(confirm('?')){ const c=DATA.inv[DATA.catId]; c.products=c.products.filter(x=>x!==p); saveAndRefresh(); }};
-
-        function saveAndRefresh() {
-            localStorage.setItem('h_inv', JSON.stringify(DATA.inv));
-            render();
-        }
-
-        // --- PRINT ---
-        let printer = null;
-        async function printBT(item) {
-            try {
-                if(!printer || !printer.gatt.connected) {
-                    printer = await navigator.bluetooth.requestDevice({ filters:[{name:'4B-2054L'}], optionalServices:['000018f0-0000-1000-8000-00805f9b34fb'] });
-                    await printer.gatt.connect();
-                }
-                const svc = await printer.gatt.getPrimaryServices();
-                const char = (await svc[0].getCharacteristics()).find(c=>c.properties.write || c.properties.writeWithoutResponse);
-                
-                const enc = new TextEncoder();
-                let cmds = `SIZE 60 mm,40 mm\nCLS\nTEXT 30,30,"3",0,1,1,"${item.prod}"\nTEXT 30,70,"2",0,1,1,"(${item.cat})"\nTEXT 30,120,"2",0,1,1,"L: ${item.lot}"\nTEXT 300,120,"2",0,1,1,"Q: ${item.qty}"\n`;
-                
-                if(item.ingredients) {
-                    let y=160;
-                    item.ingredients.forEach(i => { cmds+=`TEXT 20,${y},"1",0,1,1,"- ${i.name} [${i.lot}]"\n`; y+=20; });
-                }
-                cmds += `TEXT 30,280,"2",0,1,1,"${item.date}"\nPRINT 1\nEND`;
-                
-                const data = enc.encode(cmds);
-                for(let i=0; i<data.length; i+=100) await char.writeValue(data.slice(i, i+100));
-
-            } catch(e) { alert("Stampa BT fallita (o non supportata qui)."); }
-        }
-    </script>
-</body>
-</html>
+function analyzeWithGemini(base64Image) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+  const payload = {
+    contents: [{
+      parts: [
+        { text: "Analizza l'immagine. Estrai SOLO il codice del LOTTO (Batch Number). Rispondi SOLO con il codice alfanumerico pulito. Se non trovi nulla rispondi NULL." },
+        { inline_data: { mime_type: "image/jpeg", data: base64Image } }
+      ]
+    }]
+  };
+  const options = {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const json = JSON.parse(response.getContentText());
+    if(json.error) return { success: false, error: json.error.message };
+    const text = json.candidates[0].content.parts[0].text.trim();
+    return { success: true, lot: text };
+  } catch(e) {
+    return { success: false, error: e.toString() };
+  }
+}
