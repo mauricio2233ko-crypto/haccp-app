@@ -2,11 +2,22 @@
 <html lang="it">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover">
-    <title>HACCP Pro 17.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <title>HACCP Pro 18.0</title>
     
     <!-- STILI -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- LIBRERIE CORE (Caricamento Sicuro UMD) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- ICONE E UTILS -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src='https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js'></script>
+
     <style>
         body { font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -16,22 +27,17 @@
         .controls { position: absolute; bottom: 0; width: 100%; background: rgba(15, 23, 42, 0.95); padding: 30px; display: flex; justify-content: center; z-index: 50; }
         .scan-region { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); width: 80%; aspect-ratio: 3/1; border: 2px solid #f97316; border-radius: 12px; pointer-events: none; z-index: 10; box-shadow: 0 0 0 9999px rgba(0,0,0,0.7); }
     </style>
-
-    <!-- LIBRERIE GLOBALI -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
 </head>
 <body class="bg-gray-50 text-slate-900 select-none">
     <div id="root">
-        <div class="h-screen flex items-center justify-center text-gray-400">Caricamento...</div>
+        <div class="h-screen flex items-center justify-center text-gray-400 font-bold text-xl">
+            Caricamento App...
+        </div>
     </div>
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
+        // Mappatura icone Lucide globale
         const { Camera, Printer, Trash2, Settings, Plus, History, X, ScanLine, Zap, Check, Cloud, Download, Upload, Layers, Smartphone } = lucide;
 
         // --- DATI DEFAULT ---
@@ -48,6 +54,7 @@
                 let html5QrCode;
                 setTimeout(async () => {
                     try {
+                        // Check permessi
                         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
                         stream.getTracks().forEach(t => t.stop()); 
 
@@ -132,7 +139,7 @@
             };
             const print = (l) => { alert("Stampa: " + l.prod); };
 
-            // Menu Helpers (Semplificato per stabilità)
+            // Menu Helpers
             const [newCat, setNewCat] = useState('');
             const [newProd, setNewProd] = useState('');
             const addCat = () => { if(!newCat)return; const id=newCat.toLowerCase().replace(/\s/g,''); saveInv({...inv,[id]:{id,name:newCat,products:[]}}); setNewCat(''); };
