@@ -2,360 +2,547 @@
 <html lang="it">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
-    <title>HACCP Pro Vanilla</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover">
+    
+    <!-- PWA -->
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#ffffff">
+    <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href='data:application/manifest+json;base64,eyJuYW1lIjoiSEFDQ1AgUHJvIiwiYHNob3J0X25hbWUiOiJIQUNDUCIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjZmZmZmZmIiwidGhlbWVfY29sb3IiOiIjZjk3MzE2IiwiaWNvbnMiOlt7InNyYyI6Imh0dHBzOi8vY2RuLWljb25zLXBuZy5mbGF0aWNvbi5jb20vNTEyLzEwNDYvMTA0Njg1Ny5wbmciLCJzaXplcyI6IjUxMng1MTIiLCJ0eXBlIjoiaW1hZ2UvcG5nIn1dfQ=='>
     
+    <title>HACCP Pro 14.1</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src='https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js'></script>
-
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
-        .page { display: none; padding: 20px; padding-bottom: 80px; }
-        .page.active { display: block; }
-        .btn { @apply px-4 py-2 rounded-xl font-bold transition active:scale-95 flex items-center justify-center gap-2; }
-        .btn-primary { @apply bg-orange-500 text-white shadow-lg; }
-        .btn-sec { @apply bg-white border border-gray-200 text-gray-700; }
-        .input-box { @apply w-full p-3 border-2 border-gray-200 rounded-xl text-lg outline-none focus:border-orange-500; }
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; padding-bottom: env(safe-area-inset-bottom); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
         
-        #scanner-overlay { position: fixed; inset: 0; z-index: 99; background: black; display: none; flex-direction: column; }
-        #scanner-video { width: 100%; height: 100%; object-fit: cover; }
-        .scan-region { position: absolute; top: 40%; left: 10%; right: 10%; height: 150px; border: 2px solid orange; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.7); pointer-events: none; }
-    </style>
-</head>
-<body class="bg-gray-50 text-slate-900">
+        /* SCANNER STYLE FIX */
+        #scanner-overlay { position: fixed; inset: 0; z-index: 9999; background: black; display: flex; flex-direction: column; height: 100dvh; width: 100vw; overflow: hidden; }
+        #reader { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+        #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+        
+        /* CONTROLLI SCANNER FISSI IN BASSO */
+        #scanner-controls { 
+            position: fixed; /* cambiato da absolute a fixed */
+            bottom: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 120px;
+            z-index: 99999; /* z-index altissimo */
+            background: rgba(15, 23, 42, 1); /* sfondo solido */
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
 
-    <!-- HEADER -->
-    <div class="bg-white p-4 sticky top-0 z-10 border-b flex justify-between items-center shadow-sm">
-        <div class="font-bold text-lg flex items-center gap-2 text-orange-600"><i data-lucide="layers"></i> HACCP Pro</div>
-        <div class="flex gap-2">
-            <button onclick="nav('home')" class="p-2 bg-gray-100 rounded"><i data-lucide="plus"></i></button>
-            <button onclick="nav('history')" class="p-2 bg-gray-100 rounded"><i data-lucide="history"></i></button>
-            <button onclick="nav('settings')" class="p-2 bg-gray-100 rounded"><i data-lucide="settings"></i></button>
+        .scan-region { 
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); 
+            width: 80%; aspect-ratio: 3/1; 
+            border: 2px solid #f97316; border-radius: 12px; 
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.7); 
+            pointer-events: none; z-index: 10; 
+        }
+
+        @media print { body * { visibility: hidden; } #print-area, #print-area * { visibility: visible; } #print-area { position: fixed; left: 0; top: 0; width: 60mm; height: 40mm; } }
+    </style>
+
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "lucide-react": "https://esm.sh/lucide-react@0.263.1",
+        "html5-qrcode": "https://esm.sh/html5-qrcode@2.3.8",
+        "tesseract.js": "https://esm.sh/tesseract.js@5.0.3"
+      }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 select-none">
+    <div id="root">
+        <div class="flex h-screen items-center justify-center text-slate-400 gap-2">
+            <div class="animate-spin h-6 w-6 border-2 border-orange-500 border-t-transparent rounded-full"></div>
+            Caricamento...
         </div>
     </div>
 
-    <!-- HOME -->
-    <div id="home" class="page active max-w-lg mx-auto">
-        
-        <!-- Mode Switch -->
-        <div class="flex bg-gray-200 p-1 rounded-xl mb-4">
-            <button onclick="setMode('single')" id="btn-single" class="flex-1 py-2 rounded-lg font-bold text-sm bg-white shadow text-black">SINGOLO</button>
-            <button onclick="setMode('recipe')" id="btn-recipe" class="flex-1 py-2 rounded-lg font-bold text-sm text-gray-500">RICETTA</button>
-        </div>
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef, Component } from 'react';
+        import ReactDOM from 'react-dom/client';
+        import { Layers, Plus, History, Settings, Printer, Trash2, X, Camera, ScanLine, Zap, ChefHat, Package, Check, Cloud, Link as LinkIcon, Download, Upload, FileSpreadsheet, Lock, AlertTriangle, MonitorDown } from 'lucide-react';
+        import { Html5Qrcode } from 'html5-qrcode';
+        import Tesseract from 'tesseract.js';
 
-        <!-- Categorie -->
-        <div id="cat-list" class="flex gap-2 overflow-x-auto pb-2 mb-2"></div>
+        // --- ERROR BOUNDARY ---
+        class ErrorBoundary extends Component {
+            constructor(props) { super(props); this.state = { hasError: false }; }
+            static getDerivedStateFromError(error) { return { hasError: true }; }
+            render() {
+                if (this.state.hasError) return <div className="h-screen flex flex-col items-center justify-center p-6 text-center bg-red-50"><h1 className="text-xl font-bold text-red-900">Errore</h1><button onClick={() => { localStorage.clear(); window.location.reload(); }} className="mt-4 bg-red-600 text-white px-6 py-3 rounded-xl font-bold">RESET</button></div>;
+                return this.props.children;
+            }
+        }
 
-        <!-- Form -->
-        <div class="bg-white p-6 rounded-xl shadow space-y-4 border">
-            <div>
-                <label class="text-xs font-bold text-gray-400 block mb-1">PRODOTTO</label>
-                <select id="sel-prod" class="input-box bg-white"></select>
-            </div>
+        const DEFAULT_DATA = {
+            impasti: { id: 'impasti', name: 'Impasti', products: ['Impasto Pizza', 'Pane', 'Integrale'] },
+            cucina: { id: 'cucina', name: 'Cucina', products: ['Sugo', 'Verdure', 'Patate'] },
+            frigo: { id: 'frigo', name: 'Frigo', products: ['Mozzarella', 'Prosciutto', 'Salame'] }
+        };
 
-            <!-- Single Mode Fields -->
-            <div id="field-single">
-                <label class="text-xs font-bold text-gray-400 block mb-1">LOTTO</label>
-                <div class="flex gap-2">
-                    <input id="inp-lot" class="input-box font-mono uppercase" placeholder="SCAN..." />
-                    <button onclick="startScan('main')" class="p-3 bg-orange-100 text-orange-600 rounded-xl"><i data-lucide="camera"></i></button>
-                </div>
-            </div>
+        // --- SCANNER FIXED ---
+        const Scanner = ({ onResult, onClose }) => {
+            const [status, setStatus] = useState('Avvio...');
+            const [isProcessing, setIsProcessing] = useState(false);
+            const scannerRef = useRef(null);
 
-            <!-- Recipe Mode Fields -->
-            <div id="field-recipe" class="hidden space-y-4">
-                <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100 flex justify-between items-center">
-                    <div><div class="text-[10px] font-bold text-indigo-400">LOTTO INTERNO</div><div id="prep-lot" class="text-xl font-mono font-bold text-indigo-700">...</div></div>
-                    <i data-lucide="chef-hat" class="text-indigo-300"></i>
-                </div>
-                <div id="ing-list" class="space-y-2 text-sm"></div>
-                <div class="p-3 bg-gray-50 rounded border space-y-2">
-                    <select id="sel-ing" class="w-full p-2 border rounded"></select>
-                    <div class="flex gap-2">
-                        <input id="inp-ing-qty" class="w-24 p-2 border rounded" placeholder="Q.tà">
-                        <div class="flex-1 flex gap-1">
-                            <input id="inp-ing-lot" class="flex-1 p-2 border rounded" placeholder="Lotto">
-                            <button onclick="startScan('ing')" class="p-2 bg-white border rounded"><i data-lucide="camera" size="16"></i></button>
+            useEffect(() => {
+                let html5QrCode;
+                const initScanner = async () => {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                        stream.getTracks().forEach(track => track.stop()); // Stop stream, just checking perm
+
+                        html5QrCode = new Html5Qrcode("reader");
+                        scannerRef.current = html5QrCode;
+                        
+                        await html5QrCode.start(
+                            { facingMode: "environment" },
+                            { fps: 15, qrbox: { width: 300, height: 150 }, aspectRatio: window.innerWidth/window.innerHeight },
+                            (txt) => { stop(); onResult(txt); },
+                            () => {}
+                        );
+                        setStatus("");
+                    } catch (e) {
+                        console.error(e);
+                        setStatus("ERRORE: Permesso Camera Negato.");
+                    }
+                };
+                setTimeout(initScanner, 300);
+                return () => { if(html5QrCode?.isScanning) html5QrCode.stop().catch(()=>{}); };
+            }, []);
+
+            const stop = () => { if(scannerRef.current) scannerRef.current.stop().catch(()=>{}); onClose(); };
+
+            const extractLot = (text) => {
+                const clean = text.replace(/[^A-Z0-9\-\/\.\s:]/g, '');
+                const labelMatch = clean.match(/(?:L\.|L:|LOTTO|BATCH|LOT)[.\s:]*([A-Z0-9\-\/]+)/i);
+                if (labelMatch) return labelMatch[1];
+                const dateLotMatch = clean.match(/\b(\d{3}-\d{2})\b/);
+                if (dateLotMatch) return dateLotMatch[1];
+                const tokens = clean.split(/\s+/);
+                for(const t of tokens) { if(t.length >= 3 && t.length <= 12 && /\d/.test(t) && /[A-Z]/.test(t)) return t; }
+                for(const t of tokens) { if(t.length >= 4 && t.length <= 10 && /^\d+$/.test(t)) return t; }
+                return null;
+            };
+
+            const takePhoto = async () => {
+                const vid = document.querySelector("#reader video");
+                if(!vid) return;
+                setIsProcessing(true);
+                setStatus('Analisi OCR...');
+                try {
+                    const canvas = document.createElement('canvas');
+                    const scale = 800 / vid.videoWidth; 
+                    canvas.width = vid.videoWidth * scale;
+                    canvas.height = vid.videoHeight * scale;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+                    
+                    const cw = canvas.width * 0.8; const ch = canvas.height * 0.25;
+                    const cropCvs = document.createElement('canvas');
+                    cropCvs.width = cw; cropCvs.height = ch;
+                    cropCvs.getContext('2d').drawImage(canvas, (canvas.width-cw)/2, (canvas.height-ch)/2, cw, ch, 0, 0, cw, ch);
+
+                    const res = await Tesseract.recognize(cropCvs.toDataURL('image/jpeg', 0.6), 'eng', { tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/. :' });
+                    const found = extractLot(res.data.text);
+                    
+                    if(found) { stop(); onResult(found); } 
+                    else { 
+                        const raw = res.data.text.replace(/[^A-Z0-9\-\/]/g, '').trim();
+                        if(raw.length > 2) { stop(); onResult(raw); }
+                        else { setStatus('Non trovato. Riprova.'); setTimeout(()=> { setStatus(''); setIsProcessing(false); }, 1500); }
+                    }
+                } catch(e) { setStatus('Errore OCR'); setTimeout(()=>setIsProcessing(false), 2000); }
+            };
+
+            return (
+                <div id="scanner-overlay">
+                    <div className="absolute top-0 w-full flex justify-between p-4 text-white bg-gradient-to-b from-black/80 to-transparent z-50">
+                        <span className="font-bold flex gap-2"><ScanLine className="text-orange-500"/> SCANNER</span>
+                        <button onClick={stop} className="bg-white/20 p-2 rounded-full"><X/></button>
+                    </div>
+                    
+                    <div id="reader"></div>
+                    
+                    {!isProcessing && status==="" && (
+                        <div className="scan-region">
+                            <div className="absolute -top-10 w-full text-center text-white/90 text-sm font-bold bg-black/50 rounded-full py-1">
+                                INQUADRA IL CODICE
+                            </div>
+                        </div>
+                    )}
+                    
+                    {(status || isProcessing) && (
+                        <div className="absolute inset-0 z-40 bg-black/80 flex flex-col items-center justify-center text-white p-4 text-center">
+                            <p className="font-bold text-xl mb-2">{status}</p>
+                            {isProcessing && <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>}
+                        </div>
+                    )}
+                    
+                    <div id="scanner-controls">
+                        <div className="flex gap-8 items-center">
+                             <div className="text-white/50 text-[10px] uppercase font-bold flex flex-col items-center gap-1">
+                                <div className="p-3 rounded-full border border-white/10"><Zap size={20}/></div>
+                                Auto
+                            </div>
+                            <button onClick={takePhoto} className="flex flex-col items-center text-white gap-2 active:scale-95 transition-transform">
+                                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-black border-4 border-slate-700 ring-2 ring-white/50 shadow-lg"><Camera size={32}/></div>
+                                <span className="text-xs font-bold text-white">SCATTA FOTO</span>
+                            </button>
                         </div>
                     </div>
-                    <button onclick="addIng()" class="w-full py-2 bg-slate-800 text-white rounded font-bold text-xs">+ AGGIUNGI</button>
                 </div>
-            </div>
+            );
+        };
 
-            <div>
-                <label class="text-xs font-bold text-gray-400 block mb-1">QUANTITÀ</label>
-                <input id="inp-qty" class="input-box" placeholder="Es. 5 Kg" />
-            </div>
+        // --- GESTIONE MENU SAFE ---
+        const MenuManager = ({ inventory, onUpdate }) => {
+            const [newCat, setNewCat] = useState('');
+            const [newProd, setNewProd] = useState('');
+            const [selCat, setSelCat] = useState('');
+            const [cloudUrl, setCloudUrl] = useState('');
+            const [savedUrl, setSavedUrl] = useState(''); 
+            const fileInputRef = useRef(null);
 
-            <button onclick="saveLog()" class="w-full py-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg text-lg">STAMPA & SALVA</button>
-        </div>
-    </div>
+            useEffect(() => {
+                const keys = Object.keys(inventory);
+                if (keys.length > 0) {
+                    if (!selCat || !inventory[selCat]) setSelCat(keys[0]);
+                } else setSelCat('');
+                
+                const s = localStorage.getItem('haccp_cloud_url') || '';
+                setCloudUrl(s); setSavedUrl(s);
+            }, [inventory]);
 
-    <!-- HISTORY -->
-    <div id="history" class="page max-w-lg mx-auto">
-        <h2 class="font-bold text-xl mb-4">Storico</h2>
-        <div id="log-list" class="space-y-3"></div>
-    </div>
+            const saveCloudUrl = () => { localStorage.setItem('haccp_cloud_url', cloudUrl.trim()); setSavedUrl(cloudUrl.trim()); alert("Salvato."); };
+            const isDirty = cloudUrl !== savedUrl;
+            const isConfigured = savedUrl.length > 0;
 
-    <!-- SETTINGS -->
-    <div id="settings" class="page max-w-lg mx-auto space-y-6">
-        <div class="bg-blue-50 p-4 rounded-xl border border-blue-200">
-            <h3 class="font-bold text-blue-900 mb-2">Cloud Sync</h3>
-            <div class="flex gap-2">
-                <input id="inp-cloud" class="w-full p-2 border rounded text-sm" placeholder="URL Google Script..." />
-                <button onclick="saveCloud()" class="bg-blue-600 text-white px-3 rounded font-bold">OK</button>
-            </div>
-        </div>
+            const addCategory = () => { if (!newCat.trim()) return; const id = newCat.toLowerCase().replace(/\s+/g, ''); if (inventory[id]) return alert("Esiste"); onUpdate({ ...inventory, [id]: { id, name: newCat, products: [] } }); setNewCat(''); setSelCat(id); };
+            const deleteCategory = (id) => { if (!confirm("Eliminare?")) return; const updated = { ...inventory }; delete updated[id]; onUpdate(updated); };
+            const addProduct = () => { if (!newProd.trim() || !selCat) return; const cat = inventory[selCat]; onUpdate({ ...inventory, [selCat]: { ...cat, products: [...cat.products, newProd.trim()] } }); setNewProd(''); };
+            const deleteProduct = (prodName) => { if (!confirm("Eliminare?")) return; const cat = inventory[selCat]; onUpdate({ ...inventory, [selCat]: { ...cat, products: cat.products.filter(p => p !== prodName) } }); };
 
-        <div class="bg-white p-4 rounded-xl shadow space-y-4">
-            <h3 class="font-bold">Gestione Menu</h3>
-            <div class="flex gap-2">
-                <input id="new-cat" class="flex-1 border p-2 rounded" placeholder="Nuova Categoria" />
-                <button onclick="addCat()" class="bg-slate-900 text-white px-4 rounded font-bold">+</button>
-            </div>
-            <div id="settings-cats" class="flex flex-wrap gap-2"></div>
-            <div class="border-t pt-4">
-                <div class="flex gap-2 mb-2">
-                    <input id="new-prod" class="flex-1 border p-2 rounded" placeholder="Nuovo Prodotto" />
-                    <button onclick="addProd()" class="bg-blue-600 text-white px-4 rounded font-bold">+</button>
+            const exportMenu = () => {
+                let csv = "Categoria,Prodotto\n";
+                Object.values(inventory).forEach(c => c.products.forEach(p => csv += `${c.name},${p}\n`));
+                const link = document.createElement("a");
+                link.href = "data:text/csv;charset=utf-8," + encodeURI(csv);
+                link.download = "menu_haccp.csv";
+                link.click();
+            };
+
+            const importMenu = (e) => {
+                const file = e.target.files[0];
+                if(!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const lines = evt.target.result.split('\n');
+                    const newInv = { ...inventory };
+                    lines.forEach((l, i) => {
+                        if(i===0) return;
+                        const [c, p] = l.split(',');
+                        if(c && p) {
+                            const id = c.trim().toLowerCase().replace(/\s+/g, '');
+                            if(!newInv[id]) newInv[id] = { id, name: c.trim(), products: [] };
+                            if(!newInv[id].products.includes(p.trim())) newInv[id].products.push(p.trim());
+                        }
+                    });
+                    onUpdate(newInv);
+                    alert("Importato!");
+                };
+                reader.readAsText(file);
+            };
+
+            const installApp = () => {
+                if (window.deferredPrompt) {
+                    window.deferredPrompt.prompt();
+                    window.deferredPrompt.userChoice.then((choiceResult) => { window.deferredPrompt = null; });
+                } else {
+                    alert("Per installare:\niPad: Condividi > Aggiungi a Home\nAndroid: Menu > Installa App");
+                }
+            };
+            
+            // Safe Access for Products
+            const currentProducts = (inventory[selCat] && Array.isArray(inventory[selCat].products)) ? inventory[selCat].products : [];
+
+            return (
+                <div className="p-4 md:p-8 space-y-8 pb-20 animate-in fade-in max-w-5xl mx-auto">
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 shadow-sm flex justify-between items-center">
+                        <div className="text-indigo-900 font-bold flex items-center gap-2"><Smartphone size={20}/> App Mobile</div>
+                        <button onClick={installApp} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow flex items-center gap-2"><MonitorDown size={16}/> INSTALLA</button>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div className={`border rounded-2xl p-6 shadow-sm ${isConfigured ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-100'}`}>
+                            <h3 className={`font-bold flex items-center gap-2 mb-2 ${isConfigured ? 'text-green-800' : 'text-blue-900'}`}><Cloud size={20}/> {isConfigured ? 'Cloud Attivo' : 'Cloud Sync'}</h3>
+                            <div className="flex gap-2"><div className="relative flex-1"><LinkIcon size={16} className="absolute left-3 top-3.5 text-gray-400"/><input className="w-full pl-9 pr-3 py-3 border border-white rounded-xl text-sm bg-white" placeholder="URL Script..." value={cloudUrl} onChange={e => setCloudUrl(e.target.value)}/></div><button onClick={saveCloudUrl} disabled={!isDirty && isConfigured} className={`px-4 rounded-xl font-bold text-white ${!isDirty && isConfigured ? 'bg-green-500 opacity-80' : 'bg-blue-600'}`}>{!isDirty && isConfigured ? 'OK' : 'SALVA'}</button></div>
+                        </div>
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 shadow-sm">
+                            <h3 className="font-bold text-emerald-900 flex items-center gap-2 mb-4"><FileSpreadsheet size={20}/> Backup Menu</h3>
+                            <div className="flex gap-3"><button onClick={exportMenu} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow"><Download size={18}/> EXPORT</button><button onClick={()=>fileInputRef.current.click()} className="flex-1 bg-white text-emerald-700 border-2 border-emerald-600 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow"><Upload size={18}/> IMPORT</button><input type="file" ref={fileInputRef} onChange={importMenu} accept=".csv" className="hidden" /></div>
+                        </div>
+                    </div>
+                    <h2 className="font-bold text-2xl flex gap-3 items-center text-slate-800"><Settings className="text-orange-500" size={28}/> Gestione Menu</h2>
+                    
+                    <div className="grid md:grid-cols-12 gap-6">
+                        <div className="md:col-span-4 space-y-4">
+                            <div className="bg-white p-4 rounded-2xl border shadow-sm">
+                                <div className="flex gap-2"><input className="flex-1 p-3 border rounded-xl" placeholder="Nuova Categoria..." value={newCat} onChange={e => setNewCat(e.target.value)}/><button onClick={addCategory} className="bg-slate-900 text-white px-4 rounded-xl font-bold">OK</button></div>
+                            </div>
+                            <div className="bg-white rounded-2xl border shadow-sm overflow-hidden p-2 space-y-1">
+                                {Object.values(inventory).map(c => (
+                                    <button key={c.id} onClick={() => setSelCat(c.id)} className={`w-full text-left px-4 py-3 rounded-xl font-bold flex justify-between ${selCat === c.id ? 'bg-orange-50 text-orange-600' : 'text-slate-600'}`}>{c.name}{selCat === c.id && <span onClick={(e) => { e.stopPropagation(); deleteCategory(c.id); }} className="text-red-400"><Trash2 size={16}/></span>}</button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="md:col-span-8 bg-white rounded-2xl border shadow-sm h-[500px] flex flex-col">
+                            <div className="p-4 border-b bg-slate-50 font-bold text-slate-700">PRODOTTI: <span className="text-orange-600 uppercase">{inventory[selCat]?.name}</span></div>
+                            <div className="p-4 border-b flex gap-2"><input className="flex-1 p-3 border rounded-xl" placeholder="Nuovo prodotto..." value={newProd} onChange={e => setNewProd(e.target.value)} onKeyDown={e => e.key === 'Enter' && addProduct()}/><button onClick={addProduct} className="bg-blue-600 text-white px-6 rounded-xl font-bold"><Plus/></button></div>
+                            <div className="p-4 flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-3 content-start">
+                                {currentProducts.map((p, idx) => (
+                                    <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border hover:border-blue-300"><span className="font-medium">{p}</span><button onClick={() => deleteProduct(p)} className="text-slate-300 hover:text-red-500"><X/></button></div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div id="settings-prods" class="max-h-60 overflow-y-auto space-y-1"></div>
-            </div>
-        </div>
-        
-        <div class="text-center">
-            <button onclick="resetApp()" class="text-red-500 text-xs underline">RESET TOTALE</button>
-        </div>
-    </div>
-
-    <!-- SCANNER OVERLAY -->
-    <div id="scanner-overlay">
-        <div class="absolute top-0 w-full p-4 flex justify-between text-white z-20">
-            <span class="font-bold">SCANNER</span>
-            <button onclick="closeScan()"><i data-lucide="x"></i></button>
-        </div>
-        <div class="relative flex-1 bg-black">
-            <video id="scanner-video" autoplay playsinline></video>
-            <div class="scan-region"></div>
-            <div id="scan-status" class="absolute inset-0 flex items-center justify-center text-white font-bold bg-black/50 hidden">ANALISI...</div>
-        </div>
-        <div class="bg-slate-900 p-8 flex justify-center z-20">
-            <button onclick="takePhoto()" class="flex flex-col items-center text-white gap-2">
-                <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center text-black border-4 border-slate-700"><i data-lucide="camera" size="32"></i></div>
-                <span class="text-xs font-bold">SCATTA</span>
-            </button>
-        </div>
-        <canvas id="scan-canvas" class="hidden"></canvas>
-    </div>
-
-    <script>
-        // --- STATE ---
-        let DATA = {
-            inventory: { impasti: { id: 'impasti', name: 'Impasti', products: ['Impasto Pizza'] } },
-            logs: [],
-            mode: 'single', // single | recipe
-            catId: 'impasti',
-            ingredients: [],
-            scanTarget: ''
+            );
         };
 
-        // --- INIT ---
-        function init() {
-            lucide.createIcons();
-            loadData();
-            renderCats();
-            renderProds();
-            renderLogs();
-            updatePrepLot();
-        }
+        // --- APP ---
+        function App() {
+            const [view, setView] = useState('home');
+            const [mode, setMode] = useState('single');
+            const [inv, setInv] = useState(DEFAULT_DATA);
+            const [logs, setLogs] = useState([]);
+            const [catId, setCatId] = useState('impasti');
+            const [prod, setProd] = useState('');
+            const [lot, setLot] = useState('');
+            const [qty, setQty] = useState('');
+            const [prepLot, setPrepLot] = useState('');
+            const [ings, setIngs] = useState([]);
+            const [ingName, setIngName] = useState('');
+            const [ingLot, setIngLot] = useState('');
+            const [ingQty, setIngQty] = useState('');
+            const [scanning, setScanning] = useState(false);
+            const [scanTarget, setScanTarget] = useState(null);
+            const printer = useRef(null);
 
-        function loadData() {
-            const i = localStorage.getItem('h_inv'); if(i) DATA.inventory = JSON.parse(i);
-            const l = localStorage.getItem('h_logs'); if(l) DATA.logs = JSON.parse(l);
-            const u = localStorage.getItem('h_url'); if(u) document.getElementById('inp-cloud').value = u;
-            // Select first cat
-            if(!DATA.inventory[DATA.catId] && Object.keys(DATA.inventory).length) DATA.catId = Object.keys(DATA.inventory)[0];
-        }
+            useEffect(() => {
+                window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); window.deferredPrompt = e; });
+                try {
+                    const i = localStorage.getItem('haccp_inv_v5'); 
+                    if(i) {
+                        const p = JSON.parse(i);
+                        if(p && typeof p === 'object') setInv(p);
+                    }
+                    const l = localStorage.getItem('haccp_logs_v5'); if(l) setLogs(JSON.parse(l));
+                    genLot();
+                } catch(e) { console.error(e); }
+            }, []);
 
-        // --- NAVIGATION ---
-        window.nav = (page) => {
-            document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
-            document.getElementById(page).classList.add('active');
-            if(page === 'settings') renderSettings();
-        };
+            useEffect(() => {
+                if (inv[catId]) { if (inv[catId].products.length > 0) setProd(inv[catId].products[0]); else setProd(''); } 
+                else if (Object.keys(inv).length > 0) setCatId(Object.keys(inv)[0]);
+            }, [inv, catId]);
 
-        window.setMode = (m) => {
-            DATA.mode = m;
-            document.getElementById('btn-single').className = m==='single' ? 'flex-1 py-2 rounded-lg font-bold text-sm bg-white shadow text-black' : 'flex-1 py-2 rounded-lg font-bold text-sm text-gray-500';
-            document.getElementById('btn-recipe').className = m==='recipe' ? 'flex-1 py-2 rounded-lg font-bold text-sm bg-white shadow text-indigo-600' : 'flex-1 py-2 rounded-lg font-bold text-sm text-gray-500';
-            
-            document.getElementById('field-single').classList.toggle('hidden', m !== 'single');
-            document.getElementById('field-recipe').classList.toggle('hidden', m !== 'recipe');
-        };
+            const saveInv = (n) => { setInv(n); localStorage.setItem('haccp_inv_v5', JSON.stringify(n)); };
+            const genLot = () => {
+                const c = parseInt(localStorage.getItem('prep_c')||'0')+1;
+                setPrepLot(`PREP-${String(c).padStart(4,'0')}`);
+            };
 
-        // --- RENDERERS ---
-        function renderCats() {
-            const div = document.getElementById('cat-list');
-            div.innerHTML = Object.values(DATA.inventory).map(c => 
-                `<button onclick="setCat('${c.id}')" class="px-4 py-2 rounded-full border text-sm font-bold whitespace-nowrap ${DATA.catId===c.id?'bg-orange-500 text-white':'bg-white'}">${c.name}</button>`
-            ).join('');
-        }
+            const addLog = async (e) => {
+                e.preventDefault();
+                let fLot = lot; let fIngs = null;
+                if (mode === 'recipe') {
+                    if(ings.length === 0) return alert("Aggiungi ingredienti");
+                    fLot = prepLot; fIngs = ings;
+                    localStorage.setItem('prep_c', (parseInt(localStorage.getItem('prep_c')||'0')+1).toString());
+                    genLot();
+                } else {
+                    if(!lot) return alert("Inserisci Lotto");
+                }
+                
+                const newItem = { id: Date.now(), date: new Date().toISOString().split('T')[0], cat: inv[catId]?.name || 'Varie', prod: prod || 'Prodotto', lot: fLot, qty, type: mode, ingredients: fIngs };
+                const newLogs = [newItem, ...logs];
+                setLogs(newLogs);
+                localStorage.setItem('haccp_logs_v5', JSON.stringify(newLogs));
+                
+                const cloudUrl = localStorage.getItem('haccp_cloud_url');
+                if (cloudUrl) {
+                    fetch(cloudUrl, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newItem)
+                    }).catch(console.error);
+                }
 
-        function renderProds() {
-            const sel = document.getElementById('sel-prod');
-            const prods = DATA.inventory[DATA.catId]?.products || [];
-            sel.innerHTML = prods.map(p => `<option value="${p}">${p}</option>`).join('');
-        }
-        
-        function renderLogs() {
-            const div = document.getElementById('log-list');
-            div.innerHTML = DATA.logs.map(l => `
-                <div class="bg-white p-4 rounded-xl shadow border flex justify-between items-center">
-                    <div><div class="font-bold">${l.prod}</div><div class="text-xs text-gray-500">${l.lot} • ${l.qty}</div></div>
-                    <div class="text-xs text-gray-400">${l.date}</div>
+                await printBT(newItem);
+                setLot(''); setQty(''); setIngs([]);
+            };
+
+            const wrapText = (text, maxChars) => {
+                if(!text) return [""];
+                const words = text.split(' ');
+                let lines = [], currentLine = words[0];
+                for (let i = 1; i < words.length; i++) {
+                    if (currentLine.length + 1 + words[i].length <= maxChars) currentLine += ' ' + words[i];
+                    else { lines.push(currentLine); currentLine = words[i]; }
+                }
+                lines.push(currentLine);
+                return lines;
+            };
+
+            const printBT = async (item) => {
+                try {
+                    let dev = printer.current;
+                    let server;
+
+                    if (dev && dev.gatt.connected) {
+                        server = dev.gatt;
+                    } else {
+                        // @ts-ignore
+                        dev = await navigator.bluetooth.requestDevice({
+                            filters: [{ name: '4B-2054L' }],
+                            optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+                        });
+                        server = await dev.gatt.connect();
+                        printer.current = dev;
+                        dev.addEventListener('gattserverdisconnected', () => { 
+                            printer.current = null; 
+                        });
+                    }
+
+                    const svc = await server.getPrimaryServices();
+                    // @ts-ignore
+                    const char = (await svc[0].getCharacteristics()).find(c => c.properties.write || c.properties.writeWithoutResponse);
+                    if(!char) throw new Error("No Write");
+
+                    const enc = new TextEncoder();
+                    let cmds = `SIZE 60 mm,40 mm\nCLS\nBOX 10,10,470,310,3\n`;
+                    let y = 30;
+
+                    const prodLines = wrapText(item.prod, 18);
+                    prodLines.forEach(l => { cmds += `TEXT 240,${y},"3",0,1,1,2,"${l}"\n`; y+=35; });
+                    
+                    cmds += `TEXT 240,${y},"2",0,1,1,2,"(${item.cat})"\n`; y+=30;
+                    cmds += `BAR 10,${y},460,2\n`; y+=10;
+                    cmds += `TEXT 30,${y},"2",0,1,1,"L: ${item.lot}"\n`;
+                    cmds += `TEXT 300,${y},"2",0,1,1,"Q: ${item.qty}"\n`;
+                    y+=35;
+
+                    if (item.type === 'recipe' && item.ingredients) {
+                        item.ingredients.forEach((ing) => {
+                            const lineStr = `- ${ing.name} [${ing.lot}]`;
+                            const iLines = wrapText(lineStr, 40);
+                            iLines.forEach(l => {
+                                if(y < 265) { cmds += `TEXT 20,${y},"1",0,1,1,"${l}"\n`; y+=20; }
+                            });
+                        });
+                    }
+
+                    cmds += `BAR 10,270,460,2\nTEXT 30,285,"2",0,1,1,"${item.date}"\nTEXT 300,285,"2",0,1,1,"Scad: +3gg"\nPRINT 1\nEND`;
+                    
+                    const data = enc.encode(cmds);
+                    for(let i=0; i<data.length; i+=100) await char.writeValue(data.slice(i, i+100));
+
+                } catch(e) { 
+                    alert("Stampa BT fallita. Uso browser.");
+                    window.print(); 
+                }
+            };
+
+            const triggerScan = (t) => { setScanTarget(t); setScanning(true); };
+            const onScanResult = (t) => { if(scanTarget==='main') setLot(t); else setIngLot(t); setScanning(false); };
+            const addIng = () => { if(!ingName||!ingQty) return alert("Dati mancanti"); setIngs([...ings, {name:ingName, lot:ingLot||'N/A', qty:ingQty}]); setIngName(''); setIngLot(''); setIngQty(''); };
+
+            return (
+                <div className="min-h-screen bg-slate-50 flex flex-col pb-safe">
+                    {!window.isSecureContext && <div className="bg-amber-100 text-amber-800 p-2 text-center text-xs font-bold">HTTPS NECESSARIO</div>}
+
+                    <header className="bg-white p-4 sticky top-0 z-30 border-b flex justify-between items-center shadow-sm">
+                        <div className="font-bold text-lg flex items-center gap-2"><Layers className="text-orange-500"/> HACCP Pro</div>
+                        <div className="flex gap-2">
+                            <button onClick={()=>setView('home')} className={`p-2 rounded-lg transition-all ${view==='home'?'bg-slate-100 text-slate-900':'text-slate-400'}`}><Plus size={24}/></button>
+                            <button onClick={()=>setView('history')} className={`p-2 rounded-lg transition-all ${view==='history'?'bg-slate-100 text-slate-900':'text-slate-400'}`}><History size={24}/></button>
+                            <button onClick={()=>setView('menu')} className={`p-2 rounded-lg transition-all ${view==='menu'?'bg-slate-100 text-slate-900':'text-slate-400'}`}><Settings size={24}/></button>
+                        </div>
+                    </header>
+
+                    <main className="flex-1 p-4 overflow-y-auto">
+                        {view === 'home' && (
+                            <div className="max-w-5xl mx-auto animate-in fade-in grid md:grid-cols-12 gap-6">
+                                <div className="md:col-span-5 space-y-4">
+                                    <div className="flex bg-slate-200 p-1 rounded-2xl">
+                                        <button onClick={()=>setMode('single')} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${mode==='single'?'bg-white shadow text-slate-900':'text-slate-500'}`}>SINGOLO</button>
+                                        <button onClick={()=>setMode('recipe')} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${mode==='recipe'?'bg-white shadow text-indigo-600':'text-slate-500'}`}>RICETTA</button>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-wrap gap-2">
+                                        {Object.values(inv).map(c => <button key={c.id} onClick={()=>{setCatId(c.id); if(c.products.length) setProd(c.products[0]); else setProd('')}} className={`px-4 py-2 rounded-lg font-bold text-sm border transition-all ${catId===c.id?'bg-orange-500 text-white':'bg-slate-50 border-slate-200'}`}>{c.name}</button>)}
+                                    </div>
+                                    <div className="bg-white p-4 rounded-2xl border shadow-sm">
+                                        <select className="w-full p-4 bg-slate-50 border-2 rounded-xl font-bold text-lg outline-none" value={prod} onChange={e=>setProd(e.target.value)}>{(inv[catId]?.products || []).map(p=><option key={p} value={p}>{p}</option>)}</select>
+                                    </div>
+                                </div>
+                                <div className="md:col-span-7 bg-white p-6 rounded-2xl border shadow-sm">
+                                    <form onSubmit={addLog} className="space-y-6">
+                                        {mode==='single' ? (
+                                            <div><label className="text-xs font-bold text-slate-400 mb-1 block">LOTTO ORIGINE</label><div className="flex gap-2"><input value={lot} onChange={e=>setLot(e.target.value)} className="flex-1 p-4 border-2 rounded-xl font-mono text-lg uppercase" placeholder="SCAN..." /><button type="button" onClick={()=>triggerScan('main')} className="p-4 bg-orange-100 text-orange-600 rounded-xl"><Camera/></button></div></div>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex justify-between items-center"><div><div className="text-[10px] font-bold text-indigo-400">LOTTO INTERNO</div><div className="text-2xl font-mono font-bold text-indigo-700">{prepLot}</div></div><ChefHat className="text-indigo-300" size={32}/></div>
+                                                <div className="space-y-2">{ings.map((i,k) => <div key={k} className="flex justify-between bg-slate-50 p-2 rounded text-sm border"><span className="font-bold">{i.name} ({i.qty})</span><span className="font-mono">{i.lot}</span></div>)}</div>
+                                                <div className="p-4 bg-slate-50 rounded-xl border space-y-3"><select className="w-full p-3 border rounded-lg bg-white" value={newIngName} onChange={e=>setIngName(e.target.value)}><option value="">Seleziona...</option>{Object.values(inv).map(c=><optgroup key={c.id} label={c.name}>{c.products.map(p=><option key={p} value={p}>{p}</option>)}</optgroup>)}</select><div className="flex gap-2"><input className="w-24 p-3 border rounded-lg" placeholder="Q.tà" value={ingQty} onChange={e=>setIngQty(e.target.value)}/><div className="flex-1 flex gap-1"><input className="flex-1 p-3 border rounded-lg" placeholder="Lotto" value={ingLot} onChange={e=>setIngLot(e.target.value)}/><button type="button" onClick={()=>triggerScan('ingredient')} className="p-3 bg-white border rounded-lg"><Camera size={20}/></button></div></div><button type="button" onClick={addIng} className="w-full py-3 bg-slate-800 text-white rounded-lg font-bold text-sm">+ AGGIUNGI</button></div>
+                                            </div>
+                                        )}
+                                        <div><label className="text-xs font-bold text-slate-400 ml-1 mb-1 block">QUANTITÀ</label><input value={qty} onChange={e=>setQty(e.target.value)} className="w-full p-4 border-2 rounded-xl font-bold text-lg" placeholder="Es. 5 Kg"/></div>
+                                        <Button type="submit" fullWidth className="py-5 text-xl shadow-xl">STAMPA ETICHETTA</Button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {view === 'history' && (
+                        <div className="max-w-2xl mx-auto space-y-4">
+                            <h2 className="font-bold text-2xl mb-6">Storico</h2>
+                            {logs.map(l => (
+                                <div key={l.id} className="bg-white p-5 rounded-2xl border shadow-sm flex flex-col gap-3">
+                                    <div className="flex justify-between items-start">
+                                        <div><span className="font-bold text-lg text-slate-800">{l.prod}</span><div className="text-sm text-slate-500">Lotto: {l.lot} • {l.qty}</div><div className="text-xs text-slate-400">{l.date}</div></div>
+                                        <div className="flex gap-2"><button onClick={()=>printBT(l)} className="p-3 bg-slate-50 rounded-xl hover:bg-slate-100"><Printer/></button><button onClick={()=>{if(confirm('?')) setLogs(logs.filter(x=>x.id!==l.id))}} className="p-3 text-red-500 rounded-xl hover:bg-red-50"><Trash2/></button></div>
+                                    </div>
+                                    {l.type === 'recipe' && l.ingredients && <div className="mt-2 p-3 bg-slate-50 rounded-xl border text-xs"><div className="font-bold mb-2">Ingredienti</div>{l.ingredients.map((ing, i) => <div key={i} className="flex justify-between border-b py-1"><span>{ing.name}</span><span className="font-mono">{ing.lot}</span></div>)}</div>}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {view === 'menu' && <MenuManager inventory={inv} onUpdate={saveInv} />}
                 </div>
-            `).join('');
+            );
         }
 
-        window.setCat = (id) => { DATA.catId = id; renderCats(); renderProds(); };
-
-        // --- ACTIONS ---
-        window.addIng = () => {
-            const sel = document.getElementById('sel-ing'); // Populate this first
-            // For simplicity in Vanilla, we use prompt or simple inputs for recipe adding
-            // Re-rendering recipe UI is complex in Vanilla, keeping it minimal
-        };
-
-        window.saveLog = async () => {
-            const prod = document.getElementById('sel-prod').value;
-            const qty = document.getElementById('inp-qty').value;
-            let lot = document.getElementById('inp-lot').value;
-
-            if(DATA.mode === 'recipe') {
-                // Logic for recipe saving
-                lot = document.getElementById('prep-lot').innerText;
-            }
-
-            if(!lot) return alert("Manca Lotto");
-
-            const item = { id: Date.now(), date: new Date().toLocaleDateString(), cat: DATA.inventory[DATA.catId].name, prod, lot, qty, type: DATA.mode };
-            
-            DATA.logs.unshift(item);
-            localStorage.setItem('h_logs', JSON.stringify(DATA.logs));
-            
-            // Cloud Sync
-            const url = document.getElementById('inp-cloud').value;
-            if(url) fetch(url, { method:'POST', mode:'no-cors', body:JSON.stringify(item) }).catch(()=>{});
-
-            // Print
-            await printBT(item);
-
-            alert("Salvato!");
-            document.getElementById('inp-lot').value = '';
-            document.getElementById('inp-qty').value = '';
-            renderLogs();
-        };
-
-        // --- SETTINGS ---
-        window.saveCloud = () => { localStorage.setItem('h_url', document.getElementById('inp-cloud').value); alert('OK'); };
-        
-        function renderSettings() {
-            const cDiv = document.getElementById('settings-cats');
-            cDiv.innerHTML = Object.values(DATA.inventory).map(c => 
-                `<button onclick="setCat('${c.id}');renderSettings()" class="px-2 py-1 border rounded text-xs ${DATA.catId===c.id?'bg-orange-100':''}">${c.name} <span onclick="delCat('${c.id}')" class="text-red-500 font-bold ml-1">x</span></button>`
-            ).join('');
-
-            const pDiv = document.getElementById('settings-prods');
-            const prods = DATA.inventory[DATA.catId]?.products || [];
-            pDiv.innerHTML = prods.map(p => 
-                `<div class="flex justify-between p-2 border rounded bg-slate-50 text-sm"><span>${p}</span><button onclick="delProd('${p}')" class="text-red-500">x</button></div>`
-            ).join('');
-        }
-
-        window.addCat = () => {
-            const val = document.getElementById('new-cat').value;
-            if(!val) return;
-            const id = val.toLowerCase().replace(/\s/g,'');
-            DATA.inventory[id] = { id, name: val, products:[] };
-            localStorage.setItem('h_inv', JSON.stringify(DATA.inventory));
-            document.getElementById('new-cat').value = '';
-            renderSettings();
-        };
-        
-        window.addProd = () => {
-            const val = document.getElementById('new-prod').value;
-            if(!val) return;
-            DATA.inventory[DATA.catId].products.push(val);
-            localStorage.setItem('h_inv', JSON.stringify(DATA.inventory));
-            document.getElementById('new-prod').value = '';
-            renderSettings();
-        };
-
-        window.delCat = (id) => { if(confirm('?')) { delete DATA.inventory[id]; localStorage.setItem('h_inv', JSON.stringify(DATA.inventory)); renderSettings(); } };
-        window.delProd = (p) => { if(confirm('?')) { const c=DATA.inventory[DATA.catId]; c.products = c.products.filter(x=>x!==p); localStorage.setItem('h_inv', JSON.stringify(DATA.inventory)); renderSettings(); } };
-        window.resetApp = () => { if(confirm('RESET?')) { localStorage.clear(); location.reload(); } };
-
-        // --- SCANNER LOGIC ---
-        window.startScan = (target) => {
-            DATA.scanTarget = target;
-            document.getElementById('scanner-overlay').style.display = 'flex';
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-                .then(stream => { document.getElementById('scanner-video').srcObject = stream; })
-                .catch(e => alert("Errore camera: " + e));
-        };
-
-        window.closeScan = () => {
-            document.getElementById('scanner-overlay').style.display = 'none';
-            const vid = document.getElementById('scanner-video');
-            if(vid.srcObject) vid.srcObject.getTracks().forEach(t => t.stop());
-        };
-
-        window.takePhoto = async () => {
-            const vid = document.getElementById('scanner-video');
-            const cvs = document.getElementById('scan-canvas');
-            const ctx = cvs.getContext('2d');
-            
-            document.getElementById('scan-status').classList.remove('hidden');
-            
-            cvs.width = vid.videoWidth; cvs.height = vid.videoHeight;
-            ctx.drawImage(vid, 0, 0);
-            
-            // Crop center
-            const w = cvs.width, h = cvs.height;
-            const cw = w * 0.8, ch = h * 0.25;
-            const cropCvs = document.createElement('canvas');
-            cropCvs.width = cw; cropCvs.height = ch;
-            cropCvs.getContext('2d').drawImage(cvs, (w-cw)/2, (h-ch)/2, cw, ch, 0, 0, cw, ch);
-
-            try {
-                const res = await Tesseract.recognize(cropCvs.toDataURL('image/jpeg'), 'eng');
-                const txt = res.data.text.replace(/[^A-Z0-9\-\/]/g, '').trim();
-                if(txt.length > 2) {
-                    if(DATA.scanTarget === 'main') document.getElementById('inp-lot').value = txt;
-                    else document.getElementById('inp-ing-lot').value = txt;
-                    closeScan();
-                } else alert("Riprova");
-            } catch(e) { alert("Errore OCR"); }
-            document.getElementById('scan-status').classList.add('hidden');
-        };
-
-        function updatePrepLot() {
-            const c = parseInt(localStorage.getItem('prep_c')||'0')+1;
-            document.getElementById('prep-lot').innerText = `PREP-${String(c).padStart(4,'0')}`;
-        }
-        
-        // --- PRINT ---
-        async function printBT(item) {
-             // Mock print for vanilla
-             console.log("Printing", item);
-        }
-
-        // Start
-        init();
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ErrorBoundary><App /></ErrorBoundary>);
     </script>
 </body>
 </html>
